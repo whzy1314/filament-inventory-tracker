@@ -21,9 +21,17 @@ body {
 
 /* Header */
 .header {
-    text-align: center;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 30px;
     color: white;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.header-main {
+    text-align: left;
 }
 
 .header h1 {
@@ -32,7 +40,6 @@ body {
     font-weight: 700;
     display: flex;
     align-items: center;
-    justify-content: center;
     gap: 15px;
 }
 
@@ -46,6 +53,76 @@ body {
 .header p {
     font-size: 1.1rem;
     opacity: 0.9;
+}
+
+/* User Menu */
+.user-menu {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    padding: 10px 20px;
+    border-radius: 50px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: white;
+    font-weight: 500;
+}
+
+.user-info i {
+    font-size: 1.5rem;
+    opacity: 0.9;
+}
+
+.user-info span {
+    font-size: 0.95rem;
+}
+
+.btn-logout {
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 8px 16px;
+    border-radius: 25px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-logout:hover {
+    background: rgba(255, 255, 255, 0.25);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.btn-logout i {
+    font-size: 1rem;
+}
+
+@media (max-width: 768px) {
+    .header {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .header-main {
+        text-align: center;
+    }
+    
+    .user-menu {
+        width: 100%;
+        justify-content: center;
+    }
 }
 
 /* Controls */
