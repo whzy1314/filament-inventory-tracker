@@ -54,6 +54,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // Check authentication and load user info
+let currentUser = null;
+
 async function checkAuthAndLoadUser() {
     try {
         const response = await fetch('/api/auth/check');
@@ -64,9 +66,27 @@ async function checkAuthAndLoadUser() {
         }
 
         const data = await response.json();
+        currentUser = data.user;
+
         const usernameDisplay = document.getElementById('usernameDisplay');
+        const roleBadge = document.getElementById('roleBadge');
+        const adminPanelBtn = document.getElementById('adminPanelBtn');
+
         if (usernameDisplay && data.user) {
             usernameDisplay.textContent = data.user.username;
+        }
+
+        // Show role badge
+        if (roleBadge && data.user) {
+            roleBadge.textContent = data.user.role;
+            roleBadge.className = `role-badge ${data.user.role}`;
+            roleBadge.style.display = 'inline-block';
+        }
+
+        // Show admin panel button if user is admin
+        if (adminPanelBtn && data.user && data.user.role === 'admin') {
+            adminPanelBtn.style.display = 'flex';
+            adminPanelBtn.addEventListener('click', showAdminModal);
         }
     } catch (error) {
         console.error('Auth check failed:', error);
@@ -2074,3 +2094,244 @@ function openTab(evt, tabName) {
     document.getElementById(tabName).style.display = "block";
     evt.currentTarget.className += " active";
 }
+
+// ==================== Admin Panel Functions ====================
+
+// Show admin modal
+async function showAdminModal() {
+    const adminModal = document.getElementById('adminModal');
+    if (!adminModal) return;
+
+    adminModal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+
+    await loadUsers();
+}
+
+// Close admin modal
+function closeAdminModal() {
+    const adminModal = document.getElementById('adminModal');
+    if (adminModal) {
+        adminModal.classList.remove('show');
+        document.body.style.overflow = '';
+    }
+}
+
+// Load all users
+async function loadUsers() {
+    const usersTableBody = document.getElementById('usersTableBody');
+    const usersLoading = document.getElementById('usersLoading');
+
+    if (!usersTableBody) return;
+
+    // Show loading
+    usersTableBody.innerHTML = '';
+    if (usersLoading) usersLoading.style.display = 'block';
+
+    try {
+        const users = await apiCall('/admin/users');
+
+        if (usersLoading) usersLoading.style.display = 'none';
+
+        if (users.length === 0) {
+            usersTableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px;">No users found</td></tr>';
+            return;
+        }
+
+        usersTableBody.innerHTML = users.map(user => {
+            const isCurrentUser = currentUser && currentUser.id === user.id;
+            const createdDate = new Date(user.created_at).toLocaleDateString();
+
+            return `
+                <tr class="${isCurrentUser ? 'current-user' : ''}">
+                    <td>${user.id}</td>
+                    <td>
+                        <div class="user-name-cell">
+                            <i class="fas fa-user-circle"></i>
+                            <span>${escapeHtml(user.username)}</span>
+                            ${isCurrentUser ? '<span class="you-badge">You</span>' : ''}
+                        </div>
+                    </td>
+                    <td>
+                        <span class="table-role-badge ${user.role}">${user.role}</span>
+                    </td>
+                    <td>${createdDate}</td>
+                    <td>
+                        <div class="table-actions">
+                            ${!isCurrentUser ? `
+                                <button class="btn btn-secondary btn-small" onclick="toggleUserRole(${user.id}, '${user.role}', '${escapeHtml(user.username)}')" title="Toggle Role">
+                                    <i class="fas fa-user-shield"></i>
+                                </button>
+                            ` : ''}
+                            <button class="btn btn-secondary btn-small" onclick="showChangePasswordModal(${user.id}, '${escapeHtml(user.username)}')" title="Change Password">
+                                <i class="fas fa-key"></i>
+                            </button>
+                            ${!isCurrentUser ? `
+                                <button class="btn btn-danger btn-small" onclick="showDeleteUserModal(${user.id}, '${escapeHtml(user.username)}')" title="Delete User">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            ` : ''}
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+    } catch (error) {
+        if (usersLoading) usersLoading.style.display = 'none';
+        usersTableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #dc3545; padding: 20px;">Error loading users</td></tr>';
+        console.error('Failed to load users:', error);
+    }
+}
+
+// Toggle user role
+async function toggleUserRole(userId, currentRole, username) {
+    const newRole = currentRole === 'admin' ? 'user' : 'admin';
+
+    if (!confirm(`Change ${username}'s role from "${currentRole}" to "${newRole}"?`)) {
+        return;
+    }
+
+    try {
+        await apiCall(`/admin/users/${userId}/role`, {
+            method: 'PUT',
+            body: JSON.stringify({ role: newRole })
+        });
+
+        showToast(`${username}'s role changed to ${newRole}`, 'success');
+        await loadUsers();
+    } catch (error) {
+        console.error('Failed to change role:', error);
+    }
+}
+
+// Show change password modal
+function showChangePasswordModal(userId, username) {
+    const modal = document.getElementById('changePasswordModal');
+    const usernameDisplay = document.getElementById('changePasswordUsername');
+    const userIdInput = document.getElementById('changePasswordUserId');
+    const form = document.getElementById('changePasswordForm');
+
+    if (!modal) return;
+
+    // Reset form
+    form.reset();
+
+    // Set values
+    usernameDisplay.textContent = username;
+    userIdInput.value = userId;
+
+    // Show modal
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+
+    // Focus on password field
+    setTimeout(() => {
+        document.getElementById('newPassword').focus();
+    }, 100);
+}
+
+// Close change password modal
+function closeChangePasswordModal() {
+    const modal = document.getElementById('changePasswordModal');
+    if (modal) {
+        modal.classList.remove('show');
+        document.body.style.overflow = '';
+    }
+}
+
+// Handle change password form submit
+document.addEventListener('DOMContentLoaded', () => {
+    const changePasswordForm = document.getElementById('changePasswordForm');
+    if (changePasswordForm) {
+        changePasswordForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const userId = document.getElementById('changePasswordUserId').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmNewPassword').value;
+
+            if (newPassword !== confirmPassword) {
+                showToast('Passwords do not match', 'error');
+                return;
+            }
+
+            if (newPassword.length < 6) {
+                showToast('Password must be at least 6 characters', 'error');
+                return;
+            }
+
+            try {
+                await apiCall(`/admin/users/${userId}/password`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ newPassword })
+                });
+
+                showToast('Password changed successfully', 'success');
+                closeChangePasswordModal();
+            } catch (error) {
+                console.error('Failed to change password:', error);
+            }
+        });
+    }
+
+    // Delete user confirmation button
+    const confirmDeleteUserBtn = document.getElementById('confirmDeleteUserBtn');
+    if (confirmDeleteUserBtn) {
+        confirmDeleteUserBtn.addEventListener('click', confirmDeleteUser);
+    }
+});
+
+// Show delete user modal
+function showDeleteUserModal(userId, username) {
+    const modal = document.getElementById('deleteUserModal');
+    const usernameDisplay = document.getElementById('deleteUserUsername');
+    const userIdInput = document.getElementById('deleteUserId');
+
+    if (!modal) return;
+
+    usernameDisplay.textContent = username;
+    userIdInput.value = userId;
+
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+
+// Close delete user modal
+function closeDeleteUserModal() {
+    const modal = document.getElementById('deleteUserModal');
+    if (modal) {
+        modal.classList.remove('show');
+        document.body.style.overflow = '';
+    }
+}
+
+// Confirm delete user
+async function confirmDeleteUser() {
+    const userId = document.getElementById('deleteUserId').value;
+
+    if (!userId) return;
+
+    try {
+        await apiCall(`/admin/users/${userId}`, {
+            method: 'DELETE'
+        });
+
+        showToast('User deleted successfully', 'success');
+        closeDeleteUserModal();
+        await loadUsers();
+    } catch (error) {
+        console.error('Failed to delete user:', error);
+    }
+}
+
+// Export admin functions for global access
+window.showAdminModal = showAdminModal;
+window.closeAdminModal = closeAdminModal;
+window.toggleUserRole = toggleUserRole;
+window.showChangePasswordModal = showChangePasswordModal;
+window.closeChangePasswordModal = closeChangePasswordModal;
+window.showDeleteUserModal = showDeleteUserModal;
+window.closeDeleteUserModal = closeDeleteUserModal;
+window.confirmDeleteUser = confirmDeleteUser;
+window.openTab = openTab;

@@ -560,6 +560,85 @@
             font-size: 0.75rem;
             color: #6b7280;
         }
+
+        /* Additional strength levels */
+        .strength-fill.fair {
+            width: 40%;
+            background: #f59e0b;
+        }
+
+        .strength-fill.good {
+            width: 60%;
+            background: #fbbf24;
+        }
+
+        .strength-fill.excellent {
+            width: 100%;
+            background: #10b981;
+        }
+
+        /* Setup Section Styles */
+        .setup-banner {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 15px 20px;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%);
+            border-radius: 12px;
+            margin-bottom: 24px;
+            border-left: 4px solid #667eea;
+        }
+
+        .setup-banner i {
+            color: #667eea;
+            font-size: 1.5rem;
+            animation: spin 4s linear infinite;
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .setup-banner span {
+            color: #374151;
+            font-size: 0.95rem;
+            font-weight: 500;
+        }
+
+        .setup-info {
+            background: #f8fafc;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 20px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .setup-info p {
+            margin: 0;
+            color: #374151;
+            font-size: 0.9rem;
+        }
+
+        .setup-info p:first-child {
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+        }
+
+        .setup-info .setup-note {
+            color: #6b7280;
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+
+        #setupSection .auth-form {
+            display: block;
+        }
     </style>
 </head>
 
@@ -580,104 +659,157 @@
                     <img src="logo.svg" alt="Filament Tracker Logo">
                     <h1>Filament Tracker</h1>
                 </div>
-                <p class="login-subtitle">Manage your 3D printing inventory</p>
+                <p class="login-subtitle" id="loginSubtitle">Manage your 3D printing inventory</p>
             </div>
 
-            <!-- Auth Tabs -->
-            <div class="auth-tabs" data-active="login">
-                <div class="tab-indicator"></div>
-                <button class="auth-tab active" data-tab="login" id="loginTab">Sign In</button>
-                <button class="auth-tab" data-tab="register" id="registerTab">Create Account</button>
-            </div>
-
-            <!-- Message Container -->
-            <div id="messageContainer" class="message" role="alert">
-                <i class="fas fa-exclamation-circle"></i>
-                <span id="messageText"></span>
-            </div>
-
-            <!-- Login Form -->
-            <form id="loginForm" class="auth-form active">
-                <div class="form-field">
-                    <label for="loginUsername">Username</label>
-                    <div class="input-wrapper">
-                        <input type="text" id="loginUsername" name="username" placeholder="Enter your username" required
-                            autocomplete="username">
-                        <i class="fas fa-user"></i>
-                    </div>
+            <!-- Initial Setup Section (hidden by default) -->
+            <div id="setupSection" style="display: none;">
+                <div class="setup-banner">
+                    <i class="fas fa-cog"></i>
+                    <span>Welcome! Let's set up your admin account.</span>
                 </div>
 
-                <div class="form-field">
-                    <label for="loginPassword">Password</label>
-                    <div class="input-wrapper">
-                        <input type="password" id="loginPassword" name="password" placeholder="Enter your password"
-                            required autocomplete="current-password">
-                        <i class="fas fa-lock"></i>
-                        <button type="button" class="password-toggle" aria-label="Toggle password visibility">
-                            <i class="fas fa-eye"></i>
-                        </button>
+                <form id="setupForm" class="auth-form active">
+                    <div class="setup-info">
+                        <p><strong>Username:</strong> admin (fixed)</p>
+                        <p class="setup-note">The admin username is always "admin" for simplicity. You just need to set
+                            your password.</p>
                     </div>
-                </div>
 
-                <div class="form-options">
-                    <label class="remember-me">
-                        <input type="checkbox" id="rememberMe">
-                        <span>Remember me</span>
-                    </label>
-                </div>
-
-                <button type="submit" class="submit-btn" id="loginBtn">
-                    <span class="btn-text">Sign In</span>
-                    <i class="fas fa-arrow-right"></i>
-                    <div class="spinner"></div>
-                </button>
-            </form>
-
-            <!-- Register Form -->
-            <form id="registerForm" class="auth-form">
-                <div class="form-field">
-                    <label for="registerUsername">Username</label>
-                    <div class="input-wrapper">
-                        <input type="text" id="registerUsername" name="username" placeholder="Choose a username"
-                            required minlength="3" autocomplete="username">
-                        <i class="fas fa-user"></i>
-                    </div>
-                </div>
-
-
-                <div class="form-field">
-                    <label for="registerPassword">Password</label>
-                    <div class="input-wrapper">
-                        <input type="password" id="registerPassword" name="password" placeholder="Create a password"
-                            required minlength="6" autocomplete="new-password">
-                        <i class="fas fa-lock"></i>
-                        <button type="button" class="password-toggle" aria-label="Toggle password visibility">
-                            <i class="fas fa-eye"></i>
-                        </button>
-                    </div>
-                    <div class="password-strength" id="passwordStrength">
-                        <div class="strength-bar">
-                            <div class="strength-fill" id="strengthFill"></div>
+                    <div class="form-field">
+                        <label for="setupPassword">Admin Password</label>
+                        <div class="input-wrapper">
+                            <input type="password" id="setupPassword" name="password"
+                                placeholder="Create a strong password" required minlength="6"
+                                autocomplete="new-password">
+                            <i class="fas fa-lock"></i>
+                            <button type="button" class="password-toggle" aria-label="Toggle password visibility">
+                                <i class="fas fa-eye"></i>
+                            </button>
                         </div>
-                        <span class="strength-text" id="strengthText">Password strength</span>
+                        <div class="password-strength" id="setupPasswordStrength">
+                            <div class="strength-bar">
+                                <div class="strength-fill" id="setupStrengthFill"></div>
+                            </div>
+                            <span class="strength-text" id="setupStrengthText">Password strength</span>
+                        </div>
                     </div>
+
+                    <div class="form-field">
+                        <label for="setupConfirmPassword">Confirm Password</label>
+                        <div class="input-wrapper">
+                            <input type="password" id="setupConfirmPassword" name="confirmPassword"
+                                placeholder="Confirm your password" required autocomplete="new-password">
+                            <i class="fas fa-lock"></i>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="submit-btn" id="setupBtn">
+                        <span class="btn-text">Create Admin Account</span>
+                        <i class="fas fa-rocket"></i>
+                        <div class="spinner"></div>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Auth Section (shown when setup is complete) -->
+            <div id="authSection">
+                <!-- Auth Tabs -->
+                <div class="auth-tabs" data-active="login">
+                    <div class="tab-indicator"></div>
+                    <button class="auth-tab active" data-tab="login" id="loginTab">Sign In</button>
+                    <button class="auth-tab" data-tab="register" id="registerTab">Create Account</button>
                 </div>
 
-                <div class="form-field">
-                    <label for="confirmPassword">Confirm Password</label>
-                    <div class="input-wrapper">
-                        <input type="password" id="confirmPassword" name="confirmPassword"
-                            placeholder="Confirm your password" required autocomplete="new-password">
-                        <i class="fas fa-lock"></i>
-                    </div>
+                <!-- Message Container -->
+                <div id="messageContainer" class="message" role="alert">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <span id="messageText"></span>
                 </div>
 
-                <button type="submit" class="submit-btn" id="registerBtn">
-                    <span class="btn-text">Create Account</span>
-                    <i class="fas fa-user-plus"></i>
-                    <div class="spinner"></div>
-                </button>
-            </form>
+                <!-- Login Form -->
+                <form id="loginForm" class="auth-form active">
+                    <div class="form-field">
+                        <label for="loginUsername">Username</label>
+                        <div class="input-wrapper">
+                            <input type="text" id="loginUsername" name="username" placeholder="Enter your username"
+                                required autocomplete="username">
+                            <i class="fas fa-user"></i>
+                        </div>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="loginPassword">Password</label>
+                        <div class="input-wrapper">
+                            <input type="password" id="loginPassword" name="password" placeholder="Enter your password"
+                                required autocomplete="current-password">
+                            <i class="fas fa-lock"></i>
+                            <button type="button" class="password-toggle" aria-label="Toggle password visibility">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-options">
+                        <label class="remember-me">
+                            <input type="checkbox" id="rememberMe">
+                            <span>Remember me</span>
+                        </label>
+                    </div>
+
+                    <button type="submit" class="submit-btn" id="loginBtn">
+                        <span class="btn-text">Sign In</span>
+                        <i class="fas fa-arrow-right"></i>
+                        <div class="spinner"></div>
+                    </button>
+                </form>
+
+                <!-- Register Form -->
+                <form id="registerForm" class="auth-form">
+                    <div class="form-field">
+                        <label for="registerUsername">Username</label>
+                        <div class="input-wrapper">
+                            <input type="text" id="registerUsername" name="username" placeholder="Choose a username"
+                                required minlength="3" autocomplete="username">
+                            <i class="fas fa-user"></i>
+                        </div>
+                    </div>
+
+
+                    <div class="form-field">
+                        <label for="registerPassword">Password</label>
+                        <div class="input-wrapper">
+                            <input type="password" id="registerPassword" name="password" placeholder="Create a password"
+                                required minlength="6" autocomplete="new-password">
+                            <i class="fas fa-lock"></i>
+                            <button type="button" class="password-toggle" aria-label="Toggle password visibility">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                        <div class="password-strength" id="passwordStrength">
+                            <div class="strength-bar">
+                                <div class="strength-fill" id="strengthFill"></div>
+                            </div>
+                            <span class="strength-text" id="strengthText">Password strength</span>
+                        </div>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="confirmPassword">Confirm Password</label>
+                        <div class="input-wrapper">
+                            <input type="password" id="confirmPassword" name="confirmPassword"
+                                placeholder="Confirm your password" required autocomplete="new-password">
+                            <i class="fas fa-lock"></i>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="submit-btn" id="registerBtn">
+                        <span class="btn-text">Create Account</span>
+                        <i class="fas fa-user-plus"></i>
+                        <div class="spinner"></div>
+                    </button>
+                </form>
+            </div> <!-- End of authSection -->
 
             <!-- Footer -->
             <div class="login-footer">
@@ -695,6 +827,132 @@
         const registerForm = document.getElementById('registerForm');
         const messageContainer = document.getElementById('messageContainer');
         const messageText = document.getElementById('messageText');
+
+        // Setup Elements
+        const setupSection = document.getElementById('setupSection');
+        const authSection = document.getElementById('authSection');
+        const setupForm = document.getElementById('setupForm');
+        const loginSubtitle = document.getElementById('loginSubtitle');
+
+        // Check if initial setup is required
+        async function checkSetupRequired() {
+            try {
+                const response = await fetch('/api/auth/setup-required');
+                const data = await response.json();
+
+                if (data.setupRequired) {
+                    showSetupMode();
+                } else {
+                    showAuthMode();
+                }
+            } catch (error) {
+                console.error('Error checking setup status:', error);
+                showAuthMode(); // Default to auth mode on error
+            }
+        }
+
+        function showSetupMode() {
+            setupSection.style.display = 'block';
+            authSection.style.display = 'none';
+            loginSubtitle.textContent = 'Initial Setup Required';
+            document.title = 'Initial Setup - Filament Tracker';
+        }
+
+        function showAuthMode() {
+            setupSection.style.display = 'none';
+            authSection.style.display = 'block';
+            loginSubtitle.textContent = 'Manage your 3D printing inventory';
+            document.title = 'Login - Filament Tracker';
+        }
+
+        // Setup Form Submission
+        if (setupForm) {
+            setupForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+
+                const password = document.getElementById('setupPassword').value;
+                const confirmPassword = document.getElementById('setupConfirmPassword').value;
+                const submitBtn = document.getElementById('setupBtn');
+
+                if (password !== confirmPassword) {
+                    showMessage('Passwords do not match', 'error');
+                    return;
+                }
+
+                if (password.length < 6) {
+                    showMessage('Password must be at least 6 characters', 'error');
+                    return;
+                }
+
+                submitBtn.classList.add('loading');
+
+                try {
+                    const response = await fetch('/api/auth/setup', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ password, confirmPassword })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        showMessage('Admin account created! You can now sign in.', 'success');
+                        setTimeout(() => {
+                            showAuthMode();
+                            document.getElementById('loginUsername').value = 'admin';
+                            document.getElementById('loginPassword').focus();
+                        }, 1500);
+                    } else {
+                        showMessage(data.error || 'Setup failed', 'error');
+                    }
+                } catch (error) {
+                    showMessage('Connection error. Please try again.', 'error');
+                } finally {
+                    submitBtn.classList.remove('loading');
+                }
+            });
+        }
+
+        // Setup password strength checker
+        const setupPassword = document.getElementById('setupPassword');
+        if (setupPassword) {
+            setupPassword.addEventListener('input', function () {
+                updatePasswordStrength(this.value, 'setup');
+            });
+        }
+
+        function updatePasswordStrength(password, prefix) {
+            const strengthFill = document.getElementById(prefix + 'StrengthFill');
+            const strengthText = document.getElementById(prefix + 'StrengthText');
+
+            if (!strengthFill || !strengthText) return;
+
+            if (password.length === 0) {
+                strengthFill.style.width = '0%';
+                strengthFill.className = 'strength-fill';
+                strengthText.textContent = 'Password strength';
+                return;
+            }
+
+            let strength = 0;
+            if (password.length >= 6) strength++;
+            if (password.length >= 10) strength++;
+            if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++;
+            if (/[0-9]/.test(password)) strength++;
+            if (/[^a-zA-Z0-9]/.test(password)) strength++;
+
+            const levels = ['weak', 'fair', 'good', 'strong', 'excellent'];
+            const widths = ['20%', '40%', '60%', '80%', '100%'];
+            const labels = ['Weak', 'Fair', 'Good', 'Strong', 'Excellent'];
+
+            const level = Math.min(strength, 4);
+            strengthFill.style.width = widths[level];
+            strengthFill.className = 'strength-fill ' + levels[level];
+            strengthText.textContent = labels[level];
+        }
+
+        // Check setup on page load
+        checkSetupRequired();
 
         // Tab Switching
         function switchTab(tab) {
