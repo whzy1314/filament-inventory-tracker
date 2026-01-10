@@ -40,15 +40,70 @@ const usedStatsContainer = document.getElementById('usedStats');
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', async () => {
+    // Check authentication first
+    await checkAuthAndLoadUser();
+
     setupEventListeners();
     initializeColorOptions();
     setDefaultValues();
-    
+
     // Load custom colors first, then load filaments to ensure color indicators work properly
     await loadCustomBrandsAndColors();
     loadFilaments();
     loadUsedFilaments();
 });
+
+// Check authentication and load user info
+let currentUser = null;
+
+async function checkAuthAndLoadUser() {
+    try {
+        const response = await fetch('/api/auth/check');
+        if (!response.ok) {
+            // Not authenticated, redirect to login
+            window.location.href = '/login';
+            return;
+        }
+
+        const data = await response.json();
+        currentUser = data.user;
+
+        const usernameDisplay = document.getElementById('usernameDisplay');
+        const roleBadge = document.getElementById('roleBadge');
+        const adminPanelBtn = document.getElementById('adminPanelBtn');
+
+        if (usernameDisplay && data.user) {
+            usernameDisplay.textContent = data.user.username;
+        }
+
+        // Show role badge
+        if (roleBadge && data.user) {
+            roleBadge.textContent = data.user.role;
+            roleBadge.className = `role-badge ${data.user.role}`;
+            roleBadge.style.display = 'inline-block';
+        }
+
+        // Show admin panel button if user is admin
+        if (adminPanelBtn && data.user && data.user.role === 'admin') {
+            adminPanelBtn.style.display = 'flex';
+            adminPanelBtn.addEventListener('click', showAdminModal);
+        }
+    } catch (error) {
+        console.error('Auth check failed:', error);
+        window.location.href = '/login';
+    }
+}
+
+// Logout function
+async function logout() {
+    try {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        window.location.href = '/login';
+    } catch (error) {
+        console.error('Logout failed:', error);
+        window.location.href = '/login';
+    }
+}
 
 // Event listeners
 function setupEventListeners() {
@@ -66,19 +121,19 @@ function setupEventListeners() {
     });
     filamentForm.addEventListener('submit', handleFormSubmit);
     useFilamentForm.addEventListener('submit', handleUseFormSubmit);
-    
+
     // Filter event listeners
     document.getElementById('filterBtn').addEventListener('click', toggleFiltersPanel);
     document.getElementById('applyFiltersBtn').addEventListener('click', applyFilters);
     document.getElementById('clearFiltersBtn').addEventListener('click', clearFilters);
-    
+
     // Modal close on backdrop click
     // filamentModal.addEventListener('click', (e) => {
     //     if (e.target === filamentModal) {
     //         closeModal();
     //     }
     // });
-    
+
     // deleteModal.addEventListener('click', (e) => {
     //     if (e.target === deleteModal) {
     //         closeDeleteModal();
@@ -90,9 +145,15 @@ function setupEventListeners() {
     //         closeUseModal();
     //     }
     // });
-    
+
     // Confirm delete button
     document.getElementById('confirmDeleteBtn').addEventListener('click', confirmDelete);
+
+    // Logout button
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', logout);
+    }
 }
 
 // API functions
@@ -105,16 +166,23 @@ async function apiCall(endpoint, options = {}) {
             },
             ...options
         });
-        
+
         if (!response.ok) {
+            // Handle authentication errors
+            if (response.status === 401) {
+                window.location.href = '/login';
+                throw new Error('Authentication required');
+            }
             const error = await response.json();
             throw new Error(error.error || 'API request failed');
         }
-        
+
         return await response.json();
     } catch (error) {
         console.error('API Error:', error);
-        showToast(error.message, 'error');
+        if (error.message !== 'Authentication required') {
+            showToast(error.message, 'error');
+        }
         throw error;
     }
 }
@@ -150,7 +218,7 @@ async function handleSearch() {
         loadFilaments();
         return;
     }
-    
+
     try {
         showLoading(true);
         const results = await apiCall(`/filaments/search?q=${encodeURIComponent(query)}`);
@@ -189,7 +257,7 @@ function renderUsedFilaments(filamentsToRender) {
 function createFilamentCard(filament, isUsed = false) {
     const weightPercentage = Math.min((filament.weight_remaining / 1000) * 100, 100);
     const colorStyle = getColorStyleSync(filament.color);
-    
+
     // Fix date display issue - parse date correctly to avoid timezone offset
     let purchaseDate = 'Not specified';
     if (filament.purchase_date) {
@@ -209,7 +277,7 @@ function createFilamentCard(filament, isUsed = false) {
 
     const dateLabel = isUsed ? 'Used Up Date' : 'Add Date';
     const dateValue = isUsed ? new Date(filament.updated_at).toLocaleDateString() : purchaseDate;
-    
+
     return `
         <div class="filament-card">
             <div class="filament-header">
@@ -285,10 +353,10 @@ function getColorStyle(color) {
         'transparent': 'rgba(255,255,255,0.3)',
         'clear': 'rgba(255,255,255,0.3)'
     };
-    
+
     const normalizedColor = color.toLowerCase().trim();
     const backgroundColor = colorMap[normalizedColor] || '#cccccc';
-    
+
     return `background-color: ${backgroundColor}; ${backgroundColor === '#ffffff' ? 'border-color: #999;' : ''}`;
 }
 
@@ -298,7 +366,7 @@ function updateStats(filamentsToCount = filaments) {
     const total = activeFilaments.length;
     const brands = new Set(activeFilaments.map(f => f.brand.toLowerCase())).size;
     const weight = activeFilaments.reduce((sum, f) => sum + (f.weight_remaining || 0), 0);
-    
+
     totalFilaments.textContent = total;
     totalBrands.textContent = brands;
     totalWeight.textContent = `${weight}g`;
@@ -335,10 +403,10 @@ async function showAddModal() {
     currentEditId = null;
     document.getElementById('modalTitle').textContent = 'Add New Filament';
     resetForm();
-    
+
     // Ensure custom colors are loaded before showing modal
     await loadCustomBrandsAndColors();
-    
+
     showModal();
 }
 
@@ -377,7 +445,7 @@ async function editFilament(id) {
     try {
         const filament = await apiCall(`/filaments/${id}`);
         currentEditId = id;
-        
+
         document.getElementById('modalTitle').textContent = 'Edit Filament';
         document.getElementById('filamentId').value = filament.id;
         document.getElementById('brand').value = filament.brand;
@@ -387,7 +455,7 @@ async function editFilament(id) {
         document.getElementById('weightRemaining').value = filament.weight_remaining;
         document.getElementById('purchaseDate').value = filament.purchase_date || '';
         document.getElementById('notes').value = filament.notes || '';
-        
+
         showModal();
     } catch (error) {
         console.error('Failed to load filament for editing:', error);
@@ -397,24 +465,24 @@ async function editFilament(id) {
 // Handle form submission
 async function handleFormSubmit(e) {
     e.preventDefault();
-    
+
     // Handle custom color
     let colorValue = document.getElementById('color').value.trim();
     if (!colorValue) {
         const customColorName = document.getElementById('customColorName');
         const colorPicker = document.getElementById('colorPicker');
-        
+
         if (customColorName && customColorName.value.trim()) {
             const customColorNameValue = customColorName.value.trim();
             const hexColor = colorPicker ? colorPicker.value : '#ff0000';
-            
+
             // Add custom color to database
             try {
                 await apiCall('/custom-colors', {
                     method: 'POST',
-                    body: JSON.stringify({ 
+                    body: JSON.stringify({
                         name: customColorNameValue,
-                        hex_code: hexColor 
+                        hex_code: hexColor
                     })
                 });
                 // Update dropdowns to include the new color
@@ -426,14 +494,14 @@ async function handleFormSubmit(e) {
                     return;
                 }
             }
-            
+
             colorValue = customColorNameValue;
         } else {
             showToast('Please select a color', 'error');
             return;
         }
     }
-    
+
     const formData = {
         brand: document.getElementById('brand').value.trim(),
         type: document.getElementById('type').value,
@@ -443,7 +511,7 @@ async function handleFormSubmit(e) {
         purchase_date: document.getElementById('purchaseDate').value || null,
         notes: document.getElementById('notes').value.trim() || null
     };
-    
+
     try {
         if (currentEditId) {
             await apiCall(`/filaments/${currentEditId}`, {
@@ -458,7 +526,7 @@ async function handleFormSubmit(e) {
             });
             showToast('Filament added successfully!', 'success');
         }
-        
+
         closeModal();
         loadFilaments();
     } catch (error) {
@@ -470,14 +538,14 @@ async function handleFormSubmit(e) {
 function showDeleteModal(id) {
     deleteFilamentId = id;
     const filament = filaments.find(f => f.id === id);
-    
+
     if (filament) {
         document.getElementById('deletePreview').innerHTML = `
             <strong>${escapeHtml(filament.brand)} - ${escapeHtml(filament.type)}</strong><br>
             <small>Color: ${escapeHtml(filament.color)} | Weight: ${filament.weight_remaining}g</small>
         `;
     }
-    
+
     deleteModal.classList.add('show');
     document.body.style.overflow = 'hidden';
 }
@@ -490,12 +558,12 @@ function closeDeleteModal() {
 
 async function confirmDelete() {
     if (!deleteFilamentId) return;
-    
+
     try {
         await apiCall(`/filaments/${deleteFilamentId}`, {
             method: 'DELETE'
         });
-        
+
         showToast('Filament deleted successfully!', 'success');
         closeDeleteModal();
         loadFilaments();
@@ -512,10 +580,10 @@ function showLoading(show) {
 function showToast(message, type = 'success') {
     const toastMessage = document.getElementById('toastMessage');
     toastMessage.textContent = message;
-    
+
     toast.className = `toast ${type}`;
     toast.classList.add('show');
-    
+
     setTimeout(() => {
         toast.classList.remove('show');
     }, 3000);
@@ -541,13 +609,13 @@ document.addEventListener('keydown', (e) => {
             closeUseModal();
         }
     }
-    
+
     // Ctrl/Cmd + K to focus search
     if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
         searchInput.focus();
     }
-    
+
     // Ctrl/Cmd + N to add new filament
     if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
         e.preventDefault();
@@ -572,7 +640,7 @@ if ('serviceWorker' in navigator) {
 function initializeColorOptions() {
     // Load custom brands and colors
     loadCustomBrandsAndColors();
-    
+
     // Initialize custom color dropdown
     initializeCustomColorDropdown();
 }
@@ -584,11 +652,11 @@ function initializeCustomColorDropdown() {
     const options = document.getElementById('colorOptions');
     const hiddenInput = document.getElementById('color');
     const customColorContainer = document.getElementById('customColorContainer');
-    
+
     // Toggle dropdown
-    selected.addEventListener('click', function() {
+    selected.addEventListener('click', function () {
         const isActive = selected.classList.contains('active');
-        
+
         // Close all other dropdowns
         document.querySelectorAll('.dropdown-selected.active').forEach(el => {
             if (el !== selected) {
@@ -596,7 +664,7 @@ function initializeCustomColorDropdown() {
                 el.nextElementSibling.classList.remove('show');
             }
         });
-        
+
         if (isActive) {
             selected.classList.remove('active');
             options.classList.remove('show');
@@ -605,25 +673,25 @@ function initializeCustomColorDropdown() {
             options.classList.add('show');
         }
     });
-    
+
     // Handle option selection
-    options.addEventListener('click', function(e) {
+    options.addEventListener('click', function (e) {
         // Check if the click was on an edit button
         if (e.target.closest('.edit-custom-color')) {
             e.stopPropagation();
             return; // Don't handle selection if clicking edit button
         }
-        
+
         const option = e.target.closest('.dropdown-option');
         if (!option) return;
-        
+
         const value = option.getAttribute('data-value');
         const color = option.getAttribute('data-color');
         const textElement = option.querySelector('span:last-child');
         const text = textElement ? textElement.textContent : option.textContent.replace('★', '').trim();
-        
+
         console.log('Color option selected:', { value, color, text }); // Debug log
-        
+
         // Update selected display
         if (value === 'custom') {
             selected.querySelector('.selected-text').textContent = 'Select color';
@@ -639,9 +707,9 @@ function initializeCustomColorDropdown() {
         } else {
             const colorIndicator = option.querySelector('.color-indicator');
             const selectedText = selected.querySelector('.selected-text');
-            
+
             selectedText.innerHTML = '';
-            
+
             if (colorIndicator) {
                 const clonedIndicator = colorIndicator.cloneNode(true);
                 selectedText.appendChild(clonedIndicator);
@@ -649,9 +717,9 @@ function initializeCustomColorDropdown() {
             } else {
                 selectedText.textContent = text;
             }
-            
+
             hiddenInput.value = value;
-            
+
             if (customColorContainer) {
                 customColorContainer.style.display = 'none';
                 const customColorName = document.getElementById('customColorName');
@@ -660,18 +728,18 @@ function initializeCustomColorDropdown() {
                 }
             }
         }
-        
+
         // Update selected state
         options.querySelectorAll('.dropdown-option').forEach(opt => opt.classList.remove('selected'));
         option.classList.add('selected');
-        
+
         // Close dropdown
         selected.classList.remove('active');
         options.classList.remove('show');
     });
-    
+
     // Close dropdown when clicking outside
-    document.addEventListener('click', function(e) {
+    document.addEventListener('click', function (e) {
         if (!dropdown.contains(e.target)) {
             selected.classList.remove('active');
             options.classList.remove('show');
@@ -687,11 +755,11 @@ async function loadCustomBrandsAndColors() {
             apiCall('/custom-colors'),
             apiCall('/custom-types')
         ]);
-        
+
         // Cache custom colors and types for synchronous access
         customColorsCache = customColors;
         customTypesCache = customTypes;
-        
+
         updateBrandDropdown(customBrands);
         updateColorDropdown(customColors);
         updateTypeDropdown(customTypes);
@@ -704,11 +772,11 @@ async function loadCustomBrandsAndColors() {
 function updateBrandDropdown(customBrands) {
     const brandSelect = document.getElementById('brand');
     const customOption = brandSelect.querySelector('option[value="custom"]');
-    
+
     // Remove existing custom brand options
     const existingCustom = brandSelect.querySelectorAll('.custom-brand-option');
     existingCustom.forEach(option => option.remove());
-    
+
     // Add custom brands before the "Add Custom" option
     customBrands.forEach(brand => {
         const option = document.createElement('option');
@@ -723,11 +791,11 @@ function updateBrandDropdown(customBrands) {
 function updateColorDropdown(customColors) {
     const colorOptions = document.getElementById('colorOptions');
     const customOption = colorOptions.querySelector('[data-value="custom"]');
-    
+
     // Remove existing custom color options
     const existingCustom = colorOptions.querySelectorAll('.custom-color-option');
     existingCustom.forEach(option => option.remove());
-    
+
     // Add custom colors before the "Add Custom" option
     customColors.forEach(color => {
         const option = document.createElement('div');
@@ -746,11 +814,11 @@ function updateColorDropdown(customColors) {
 function updateTypeDropdown(customTypes) {
     const typeSelect = document.getElementById('type');
     const customOption = typeSelect.querySelector('option[value="custom"]');
-    
+
     // Remove existing custom type options
     const existingCustom = typeSelect.querySelectorAll('.custom-type-option');
     existingCustom.forEach(option => option.remove());
-    
+
     // Add custom types before the "Add Custom" option
     customTypes.forEach(type => {
         const option = document.createElement('option');
@@ -765,7 +833,7 @@ function updateTypeDropdown(customTypes) {
 function styleColorOptions() {
     const colorSelect = document.getElementById('color');
     const colorOptions = colorSelect.querySelectorAll('option[data-color]');
-    
+
     colorOptions.forEach(option => {
         const color = option.getAttribute('data-color');
         if (color) {
@@ -774,13 +842,13 @@ function styleColorOptions() {
             option.textContent = colorName;
             option.style.setProperty('--option-color', color);
             option.style.paddingLeft = '30px';
-            
+
             // Create a visual color indicator using background
             option.style.background = `linear-gradient(90deg, ${color} 20px, transparent 20px)`;
             option.style.backgroundRepeat = 'no-repeat';
             option.style.backgroundPosition = '8px center';
             option.style.backgroundSize = '12px 12px';
-            
+
             // Add border for white/light colors
             if (color === '#ffffff' || color.toLowerCase() === 'white') {
                 option.style.backgroundImage = `radial-gradient(circle at 8px center, ${color} 5px, #999 5px, #999 6px, transparent 6px)`;
@@ -794,7 +862,7 @@ function setDefaultValues() {
     // Set today's date as default
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('purchaseDate').value = today;
-    
+
     // Set default weight
     document.getElementById('weightRemaining').value = '1000';
 }
@@ -828,7 +896,7 @@ async function handleUseFormSubmit(e) {
 
 async function handleFormSubmit(e) {
     e.preventDefault();
-    
+
     const formData = {
         brand: document.getElementById('brand').value.trim(),
         type: document.getElementById('type').value,
@@ -838,7 +906,7 @@ async function handleFormSubmit(e) {
         purchase_date: document.getElementById('purchaseDate').value || null,
         notes: document.getElementById('notes').value.trim() || null
     };
-    
+
     try {
         if (currentEditId) {
             await apiCall(`/filaments/${currentEditId}`, {
@@ -853,7 +921,7 @@ async function handleFormSubmit(e) {
             });
             showToast('Filament added successfully!', 'success');
         }
-        
+
         closeModal();
         loadFilaments();
     } catch (error) {
@@ -866,7 +934,7 @@ function resetForm() {
     filamentForm.reset();
     document.getElementById('filamentId').value = '';
     currentEditId = null;
-    
+
     // Hide custom inputs (only if they exist)
     const customBrand = document.getElementById('customBrand');
     const customColorContainer = document.getElementById('customColorContainer');
@@ -875,39 +943,39 @@ function resetForm() {
     const colorHex = document.getElementById('colorHex');
     const customTypeContainer = document.getElementById('customType');
     const customTypeName = document.getElementById('customTypeName');
-    
+
     if (customBrand) {
         customBrand.style.display = 'none';
         customBrand.required = false;
         customBrand.value = '';
     }
-    
+
     if (customColorContainer) {
         customColorContainer.style.display = 'none';
     }
-    
+
     if (customColorName) {
         customColorName.required = false;
         customColorName.value = '';
     }
-    
+
     if (colorPicker) {
         colorPicker.value = '#ff0000';
     }
-    
+
     if (colorHex) {
         colorHex.value = '';
     }
-    
+
     if (customTypeContainer) {
         customTypeContainer.style.display = 'none';
     }
-    
+
     if (customTypeName) {
         customTypeName.required = false;
         customTypeName.value = '';
     }
-    
+
     // Reset color dropdown to default state
     const colorSelected = document.getElementById('colorSelected');
     const hiddenColorInput = document.getElementById('color');
@@ -917,10 +985,10 @@ function resetForm() {
     if (hiddenColorInput) {
         hiddenColorInput.value = '';
     }
-    
+
     // Reset to defaults
     setDefaultValues();
-    
+
     // Reset to default selections
     document.getElementById('brand').value = 'Bambu Lab';
     document.getElementById('type').value = 'PLA';
@@ -931,13 +999,13 @@ async function editFilament(id) {
     try {
         const filament = await apiCall(`/filaments/${id}`);
         currentEditId = id;
-        
+
         // Ensure custom colors are loaded before editing
         await loadCustomBrandsAndColors();
-        
+
         document.getElementById('modalTitle').textContent = 'Edit Filament';
         document.getElementById('filamentId').value = filament.id;
-        
+
         // Handle brand (check if it's in the dropdown)
         const brandSelect = document.getElementById('brand');
         const brandOptions = Array.from(brandSelect.options).map(opt => opt.value);
@@ -949,15 +1017,15 @@ async function editFilament(id) {
             document.getElementById('customBrand').value = filament.brand;
             document.getElementById('customBrand').required = true;
         }
-        
+
         document.getElementById('type').value = filament.type;
-        
+
         // Handle color with custom dropdown
         const colorOptions = document.getElementById('colorOptions');
         const colorSelected = document.getElementById('colorSelected');
         const hiddenColorInput = document.getElementById('color');
         const customColorContainer = document.getElementById('customColorContainer');
-        
+
         // Check if color exists in dropdown options
         const colorOption = colorOptions.querySelector(`[data-value="${filament.color}"]`);
         if (colorOption) {
@@ -965,7 +1033,7 @@ async function editFilament(id) {
             const colorIndicator = colorOption.querySelector('.color-indicator');
             const textSpan = colorOption.querySelector('span:last-child');
             const text = textSpan ? textSpan.textContent : colorOption.textContent.replace('★', '').trim();
-            
+
             colorSelected.querySelector('.selected-text').innerHTML = '';
             if (colorIndicator) {
                 const clonedIndicator = colorIndicator.cloneNode(true);
@@ -973,7 +1041,7 @@ async function editFilament(id) {
             }
             colorSelected.querySelector('.selected-text').appendChild(document.createTextNode(' ' + text));
             hiddenColorInput.value = filament.color;
-            
+
             if (customColorContainer) {
                 customColorContainer.style.display = 'none';
                 const customColorName = document.getElementById('customColorName');
@@ -981,7 +1049,7 @@ async function editFilament(id) {
                     customColorName.required = false;
                 }
             }
-            
+
             // Update selected state
             colorOptions.querySelectorAll('.dropdown-option').forEach(opt => opt.classList.remove('selected'));
             colorOption.classList.add('selected');
@@ -989,7 +1057,7 @@ async function editFilament(id) {
             // Color doesn't exist in predefined options - it's a custom color
             // Set the color value directly and show it as selected
             hiddenColorInput.value = filament.color;
-            
+
             // Try to find the color in custom colors cache to get hex code
             const customColor = customColorsCache.find(c => c.name.toLowerCase() === filament.color.toLowerCase());
             if (customColor) {
@@ -1002,7 +1070,7 @@ async function editFilament(id) {
                 // Unknown color - just display the name
                 colorSelected.querySelector('.selected-text').textContent = filament.color;
             }
-            
+
             if (customColorContainer) {
                 customColorContainer.style.display = 'none';
                 const customColorName = document.getElementById('customColorName');
@@ -1010,16 +1078,16 @@ async function editFilament(id) {
                     customColorName.required = false;
                 }
             }
-            
+
             // Clear selected state from all options
             colorOptions.querySelectorAll('.dropdown-option').forEach(opt => opt.classList.remove('selected'));
         }
-        
+
         document.getElementById('spoolType').value = filament.spool_type;
         document.getElementById('weightRemaining').value = filament.weight_remaining;
         document.getElementById('purchaseDate').value = filament.purchase_date || '';
         document.getElementById('notes').value = filament.notes || '';
-        
+
         showModal();
     } catch (error) {
         console.error('Failed to load filament for editing:', error);
@@ -1051,15 +1119,15 @@ async function getColorStyle(color) {
         'marble': '#f0f8ff',
         'carbon fiber': '#36454f'
     };
-    
+
     const normalizedColor = color.toLowerCase().trim();
-    
+
     // First check predefined colors
     if (colorMap[normalizedColor]) {
         const backgroundColor = colorMap[normalizedColor];
         return `background-color: ${backgroundColor}; ${backgroundColor === '#ffffff' ? 'border-color: #999;' : ''}`;
     }
-    
+
     // Check custom colors from database
     try {
         const customColors = await apiCall('/custom-colors');
@@ -1070,7 +1138,7 @@ async function getColorStyle(color) {
     } catch (error) {
         console.error('Failed to load custom colors for styling:', error);
     }
-    
+
     // Default fallback
     return 'background-color: #cccccc;';
 }
@@ -1100,22 +1168,22 @@ function getColorStyleSync(color) {
         'marble': '#f0f8ff',
         'carbon fiber': '#36454f'
     };
-    
+
     const normalizedColor = color.toLowerCase().trim();
-    
+
     // First check predefined colors
     if (colorMap[normalizedColor]) {
         const backgroundColor = colorMap[normalizedColor];
         return `background-color: ${backgroundColor}; ${backgroundColor === '#ffffff' ? 'border-color: #999;' : ''}`;
     }
-    
+
     // Check cached custom colors
     const customColor = customColorsCache.find(c => c.name.toLowerCase() === normalizedColor);
     if (customColor) {
         const backgroundColor = customColor.hex_code;
         return `background-color: ${backgroundColor}; ${backgroundColor === '#ffffff' ? 'border-color: #999;' : ''}`;
     }
-    
+
     // Default fallback
     return 'background-color: #cccccc;';
 }
@@ -1124,30 +1192,30 @@ function getColorStyleSync(color) {
 function editCustomColor(colorName, hexCode) {
     // Prevent event bubbling
     event.stopPropagation();
-    
+
     // Set the form to custom color mode
     const colorSelect = document.getElementById('color');
     const customColorContainer = document.getElementById('customColorContainer');
     const customColorName = document.getElementById('customColorName');
     const colorPicker = document.getElementById('colorPicker');
     const colorHex = document.getElementById('colorHex');
-    
+
     // Show custom color inputs
     customColorContainer.style.display = 'block';
     customColorName.value = colorName;
     colorPicker.value = hexCode;
     colorHex.value = hexCode;
     customColorName.required = true;
-    
+
     // Update the dropdown display
     const selected = document.getElementById('colorSelected');
     selected.querySelector('.selected-text').textContent = 'Edit Custom Color';
     document.getElementById('color').value = '';
-    
+
     // Close dropdown
     selected.classList.remove('active');
     document.getElementById('colorOptions').classList.remove('show');
-    
+
     showToast('Editing custom color. Modify and save to update.', 'success');
 }
 
@@ -1207,27 +1275,27 @@ function showManageCustomsModal() {
             </div>
         </div>
     `;
-    
+
     // Add modal to page if it doesn't exist
     if (!document.getElementById('manageCustomsModal')) {
         document.body.insertAdjacentHTML('beforeend', modalHTML);
-        
+
         // Add event listeners for color picker sync
         const colorPicker = document.getElementById('newColorPicker');
         const colorHex = document.getElementById('newColorHex');
-        
-        colorPicker.addEventListener('input', function() {
+
+        colorPicker.addEventListener('input', function () {
             colorHex.value = this.value.toUpperCase();
         });
-        
-        colorHex.addEventListener('input', function() {
+
+        colorHex.addEventListener('input', function () {
             const hex = this.value;
             if (/^#[0-9A-Fa-f]{6}$/.test(hex)) {
                 colorPicker.value = hex;
             }
         });
     }
-    
+
     loadCustomManagementData();
     document.getElementById('manageCustomsModal').classList.add('show');
     document.body.style.overflow = 'hidden';
@@ -1248,7 +1316,7 @@ async function loadCustomManagementData() {
             apiCall('/custom-types'),
             apiCall('/custom-colors')
         ]);
-        
+
         // Render custom brands
         const brandsList = document.getElementById('customBrandsList');
         brandsList.innerHTML = customBrands.map(brand => `
@@ -1266,7 +1334,7 @@ async function loadCustomManagementData() {
                 </div>
             </div>
         `).join('') || '<p style="color: #666; font-style: italic;">No custom brands</p>';
-        
+
         // Render custom types
         const typesList = document.getElementById('customTypesList');
         typesList.innerHTML = customTypes.map(type => `
@@ -1284,7 +1352,7 @@ async function loadCustomManagementData() {
                 </div>
             </div>
         `).join('') || '<p style="color: #666; font-style: italic;">No custom types</p>';
-        
+
         // Render custom colors
         const colorsList = document.getElementById('customColorsList');
         colorsList.innerHTML = customColors.map(color => `
@@ -1303,7 +1371,7 @@ async function loadCustomManagementData() {
                 </div>
             </div>
         `).join('') || '<p style="color: #666; font-style: italic;">No custom colors</p>';
-        
+
     } catch (error) {
         console.error('Failed to load custom management data:', error);
     }
@@ -1312,18 +1380,18 @@ async function loadCustomManagementData() {
 async function deleteCustomBrand(brandName) {
     // Check if any filaments are using this brand
     const referencingFilaments = filaments.filter(f => f.brand.toLowerCase() === brandName.toLowerCase());
-    
+
     if (referencingFilaments.length > 0) {
         showReferencingFilamentsModal('brand', brandName, referencingFilaments);
         return;
     }
-    
+
     showCustomDeleteConfirmModal('brand', brandName, async () => {
         try {
             await apiCall(`/custom-brands/${encodeURIComponent(brandName)}`, {
                 method: 'DELETE'
             });
-            
+
             showToast('Custom brand deleted successfully!', 'success');
             loadCustomManagementData();
             loadCustomBrandsAndColors(); // Refresh dropdowns
@@ -1337,18 +1405,18 @@ async function deleteCustomBrand(brandName) {
 async function deleteCustomColor(colorName) {
     // Check if any filaments are using this color
     const referencingFilaments = filaments.filter(f => f.color.toLowerCase() === colorName.toLowerCase());
-    
+
     if (referencingFilaments.length > 0) {
         showReferencingFilamentsModal('color', colorName, referencingFilaments);
         return;
     }
-    
+
     showCustomDeleteConfirmModal('color', colorName, async () => {
         try {
             await apiCall(`/custom-colors/${encodeURIComponent(colorName)}`, {
                 method: 'DELETE'
             });
-            
+
             showToast('Custom color deleted successfully!', 'success');
             loadCustomManagementData();
             loadCustomBrandsAndColors(); // Refresh dropdowns
@@ -1361,18 +1429,18 @@ async function deleteCustomColor(colorName) {
 
 async function addCustomBrand() {
     const brandName = document.getElementById('newBrandName').value.trim();
-    
+
     if (!brandName) {
         showToast('Please enter a brand name', 'error');
         return;
     }
-    
+
     try {
         await apiCall('/custom-brands', {
             method: 'POST',
             body: JSON.stringify({ name: brandName })
         });
-        
+
         showToast('Custom brand added successfully!', 'success');
         document.getElementById('newBrandName').value = '';
         loadCustomManagementData();
@@ -1386,26 +1454,26 @@ async function addCustomBrand() {
 async function addCustomColor() {
     const colorName = document.getElementById('newColorName').value.trim();
     const colorHex = document.getElementById('newColorHex').value || document.getElementById('newColorPicker').value;
-    
+
     if (!colorName) {
         showToast('Please enter a color name', 'error');
         return;
     }
-    
+
     if (!colorHex || !/^#[0-9A-Fa-f]{6}$/.test(colorHex)) {
         showToast('Please select a valid color', 'error');
         return;
     }
-    
+
     try {
         await apiCall('/custom-colors', {
             method: 'POST',
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 name: colorName,
-                hex_code: colorHex 
+                hex_code: colorHex
             })
         });
-        
+
         showToast('Custom color added successfully!', 'success');
         document.getElementById('newColorName').value = '';
         document.getElementById('newColorHex').value = '';
@@ -1420,18 +1488,18 @@ async function addCustomColor() {
 
 async function addCustomType() {
     const typeName = document.getElementById('newTypeName').value.trim();
-    
+
     if (!typeName) {
         showToast('Please enter a type name', 'error');
         return;
     }
-    
+
     try {
         await apiCall('/custom-types', {
             method: 'POST',
             body: JSON.stringify({ name: typeName })
         });
-        
+
         showToast('Custom type added successfully!', 'success');
         document.getElementById('newTypeName').value = '';
         loadCustomManagementData();
@@ -1445,18 +1513,18 @@ async function addCustomType() {
 async function deleteCustomType(typeName) {
     // Check if any filaments are using this type
     const referencingFilaments = filaments.filter(f => f.type.toLowerCase() === typeName.toLowerCase());
-    
+
     if (referencingFilaments.length > 0) {
         showReferencingFilamentsModal('type', typeName, referencingFilaments);
         return;
     }
-    
+
     showCustomDeleteConfirmModal('type', typeName, async () => {
         try {
             await apiCall(`/custom-types/${encodeURIComponent(typeName)}`, {
                 method: 'DELETE'
             });
-            
+
             showToast('Custom type deleted successfully!', 'success');
             loadCustomManagementData();
             loadCustomBrandsAndColors(); // Refresh dropdowns
@@ -1519,37 +1587,37 @@ function showEditModal(itemType, currentName, currentHex = '', currentExtra = ''
             </div>
         </div>
     `;
-    
+
     // Remove existing modal if present
     const existingModal = document.getElementById('editCustomModal');
     if (existingModal) {
         existingModal.remove();
     }
-    
+
     // Add modal to page
     document.body.insertAdjacentHTML('beforeend', modalHTML);
-    
+
     // Add event listeners for color picker sync (if color type)
     if (itemType === 'color') {
         const colorPicker = document.getElementById('editItemColorPicker');
         const colorHex = document.getElementById('editItemHex');
-        
-        colorPicker.addEventListener('input', function() {
+
+        colorPicker.addEventListener('input', function () {
             colorHex.value = this.value.toUpperCase();
         });
-        
-        colorHex.addEventListener('input', function() {
+
+        colorHex.addEventListener('input', function () {
             const hex = this.value;
             if (/^#[0-9A-Fa-f]{6}$/.test(hex)) {
                 colorPicker.value = hex;
             }
         });
     }
-    
+
     // Show modal
     document.getElementById('editCustomModal').classList.add('show');
     document.body.style.overflow = 'hidden';
-    
+
     // Focus on name input
     document.getElementById('editItemName').focus();
     document.getElementById('editItemName').select();
@@ -1568,14 +1636,14 @@ function closeEditModal() {
 // Save edited item
 async function saveEditedItem(itemType, originalName) {
     const newName = document.getElementById('editItemName').value.trim();
-    
+
     if (!newName) {
         showToast(`Please enter a ${itemType} name`, 'error');
         return;
     }
-    
+
     let requestBody = { newName };
-    
+
     // Handle color-specific fields
     if (itemType === 'color') {
         const newHex = document.getElementById('editItemHex').value;
@@ -1584,7 +1652,7 @@ async function saveEditedItem(itemType, originalName) {
             return;
         }
         requestBody.newHexCode = newHex;
-        
+
         // Check if no changes were made
         const originalHex = document.getElementById('editItemColorPicker').defaultValue;
         if (newName === originalName && newHex === originalHex) {
@@ -1598,19 +1666,19 @@ async function saveEditedItem(itemType, originalName) {
             return;
         }
     }
-    
+
     try {
-        const endpoint = itemType === 'brand' ? 'custom-brands' : 
-                        itemType === 'type' ? 'custom-types' : 'custom-colors';
-        
+        const endpoint = itemType === 'brand' ? 'custom-brands' :
+            itemType === 'type' ? 'custom-types' : 'custom-colors';
+
         const result = await apiCall(`/${endpoint}/${encodeURIComponent(originalName)}`, {
             method: 'PUT',
             body: JSON.stringify(requestBody)
         });
-        
+
         showToast(`Custom ${itemType} updated successfully! ${result.filamentsUpdated} filaments updated.`, 'success');
         closeEditModal();
-        
+
         // Refresh all data and UI components
         await loadCustomManagementData();
         await loadCustomBrandsAndColors(); // Refresh dropdowns and cache
@@ -1638,8 +1706,8 @@ function showReferencingFilamentsModal(itemType, itemName, referencingFilaments)
                     </p>
                     <div style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; padding: 10px; background: #f8f9fa;">
                         ${referencingFilaments.map(filament => {
-                            const colorStyle = getColorStyleSync(filament.color);
-                            return `
+        const colorStyle = getColorStyleSync(filament.color);
+        return `
                                 <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; border: 1px solid #eee; margin-bottom: 5px; border-radius: 4px; background: white;">
                                     <div style="display: flex; align-items: center; gap: 10px;">
                                         <span class="color-indicator" style="${colorStyle}"></span>
@@ -1653,7 +1721,7 @@ function showReferencingFilamentsModal(itemType, itemName, referencingFilaments)
                                     </button>
                                 </div>
                             `;
-                        }).join('')}
+    }).join('')}
                     </div>
                     <p style="margin-top: 15px; color: #666; font-style: italic;">
                         To delete this custom ${itemType}, you must first remove or change the ${itemType} for all filaments listed above.
@@ -1667,16 +1735,16 @@ function showReferencingFilamentsModal(itemType, itemName, referencingFilaments)
             </div>
         </div>
     `;
-    
+
     // Remove existing modal if present
     const existingModal = document.getElementById('referencingFilamentsModal');
     if (existingModal) {
         existingModal.remove();
     }
-    
+
     // Add modal to page
     document.body.insertAdjacentHTML('beforeend', modalHTML);
-    
+
     // Show modal
     document.getElementById('referencingFilamentsModal').classList.add('show');
     document.body.style.overflow = 'hidden';
@@ -1734,21 +1802,21 @@ function showCustomDeleteConfirmModal(itemType, itemName, onConfirm) {
             </div>
         </div>
     `;
-    
+
     // Remove existing modal if present
     const existingModal = document.getElementById('customDeleteConfirmModal');
     if (existingModal) {
         existingModal.remove();
     }
-    
+
     // Store the confirmation callback in both places for reliability
     pendingDeleteCallback = onConfirm;
     window.customDeleteCallback = onConfirm;
     console.log('Stored delete callback:', typeof onConfirm, 'pendingDeleteCallback:', typeof pendingDeleteCallback); // Debug log
-    
+
     // Add modal to page
     document.body.insertAdjacentHTML('beforeend', modalHTML);
-    
+
     // Show modal
     document.getElementById('customDeleteConfirmModal').classList.add('show');
     document.body.style.overflow = 'hidden';
@@ -1769,10 +1837,10 @@ function closeCustomDeleteConfirmModal() {
 // Confirm custom delete
 async function confirmCustomDelete() {
     console.log('confirmCustomDelete called, window callback type:', typeof window.customDeleteCallback, 'pending callback type:', typeof pendingDeleteCallback);
-    
+
     // Try window callback first, then fallback to pendingDeleteCallback
     const callback = window.customDeleteCallback || pendingDeleteCallback;
-    
+
     if (callback && typeof callback === 'function') {
         try {
             closeCustomDeleteConfirmModal();
@@ -1791,7 +1859,7 @@ async function confirmCustomDelete() {
 function toggleFiltersPanel() {
     const filtersPanel = document.getElementById('filtersPanel');
     const filterBtn = document.getElementById('filterBtn');
-    
+
     if (filtersPanel.style.display === 'none' || !filtersPanel.style.display) {
         filtersPanel.style.display = 'block';
         filterBtn.classList.add('filter-active');
@@ -1807,20 +1875,20 @@ function populateFilterOptions() {
     const brands = [...new Set(filaments.map(f => f.brand))].sort();
     const types = [...new Set(filaments.map(f => f.type))].sort();
     const colors = [...new Set(filaments.map(f => f.color))].sort();
-    
+
     // Populate brand filter
     const brandFilter = document.getElementById('filterBrand');
-    brandFilter.innerHTML = '<option value="">All Brands</option>' + 
+    brandFilter.innerHTML = '<option value="">All Brands</option>' +
         brands.map(brand => `<option value="${escapeHtml(brand)}">${escapeHtml(brand)}</option>`).join('');
-    
+
     // Populate type filter
     const typeFilter = document.getElementById('filterType');
-    typeFilter.innerHTML = '<option value="">All Types</option>' + 
+    typeFilter.innerHTML = '<option value="">All Types</option>' +
         types.map(type => `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`).join('');
-    
+
     // Populate color filter
     const colorFilter = document.getElementById('filterColor');
-    colorFilter.innerHTML = '<option value="">All Colors</option>' + 
+    colorFilter.innerHTML = '<option value="">All Colors</option>' +
         colors.map(color => `<option value="${escapeHtml(color)}">${escapeHtml(color)}</option>`).join('');
 }
 
@@ -1834,7 +1902,7 @@ function applyFilters() {
     const dateToFilter = document.getElementById('filterDateTo');
     const weightMinFilter = document.getElementById('filterWeightMin');
     const weightMaxFilter = document.getElementById('filterWeightMax');
-    
+
     // Update current filters
     currentFilters.brands = Array.from(brandFilter.selectedOptions).map(option => option.value).filter(v => v);
     currentFilters.types = Array.from(typeFilter.selectedOptions).map(option => option.value).filter(v => v);
@@ -1844,17 +1912,17 @@ function applyFilters() {
     currentFilters.dateTo = dateToFilter.value || null;
     currentFilters.weightMin = weightMinFilter.value ? parseInt(weightMinFilter.value) : null;
     currentFilters.weightMax = weightMaxFilter.value ? parseInt(weightMaxFilter.value) : null;
-    
+
     // Check if any filters are active
-    isFiltersActive = currentFilters.brands.length > 0 || 
-                     currentFilters.types.length > 0 || 
-                     currentFilters.colors.length > 0 || 
-                     currentFilters.spoolTypes.length > 0 || 
-                     currentFilters.dateFrom || 
-                     currentFilters.dateTo || 
-                     currentFilters.weightMin !== null || 
-                     currentFilters.weightMax !== null;
-    
+    isFiltersActive = currentFilters.brands.length > 0 ||
+        currentFilters.types.length > 0 ||
+        currentFilters.colors.length > 0 ||
+        currentFilters.spoolTypes.length > 0 ||
+        currentFilters.dateFrom ||
+        currentFilters.dateTo ||
+        currentFilters.weightMin !== null ||
+        currentFilters.weightMax !== null;
+
     // Update filter button appearance
     const filterBtn = document.getElementById('filterBtn');
     if (isFiltersActive) {
@@ -1862,10 +1930,10 @@ function applyFilters() {
     } else {
         filterBtn.classList.remove('filters-indicator');
     }
-    
+
     // Apply filters and search
     applyFiltersAndSearch();
-    
+
     showToast('Filters applied successfully!', 'success');
 }
 
@@ -1879,7 +1947,7 @@ function clearFilters() {
     document.getElementById('filterDateTo').value = '';
     document.getElementById('filterWeightMin').value = '';
     document.getElementById('filterWeightMax').value = '';
-    
+
     // Reset current filters
     currentFilters = {
         brands: [],
@@ -1891,33 +1959,33 @@ function clearFilters() {
         weightMin: null,
         weightMax: null
     };
-    
+
     isFiltersActive = false;
-    
+
     // Update filter button appearance
     const filterBtn = document.getElementById('filterBtn');
     filterBtn.classList.remove('filters-indicator');
-    
+
     // Apply filters (which will show all filaments)
     applyFiltersAndSearch();
-    
+
     showToast('Filters cleared!', 'success');
 }
 
 function applyFiltersAndSearch() {
     let filteredFilaments = [...filaments];
     const searchQuery = searchInput.value.trim().toLowerCase();
-    
+
     // Apply search filter first
     if (searchQuery) {
-        filteredFilaments = filteredFilaments.filter(filament => 
+        filteredFilaments = filteredFilaments.filter(filament =>
             filament.brand.toLowerCase().includes(searchQuery) ||
             filament.type.toLowerCase().includes(searchQuery) ||
             filament.color.toLowerCase().includes(searchQuery) ||
             (filament.notes && filament.notes.toLowerCase().includes(searchQuery))
         );
     }
-    
+
     // Apply advanced filters
     if (isFiltersActive) {
         filteredFilaments = filteredFilaments.filter(filament => {
@@ -1925,33 +1993,33 @@ function applyFiltersAndSearch() {
             if (currentFilters.brands.length > 0 && !currentFilters.brands.includes(filament.brand)) {
                 return false;
             }
-            
+
             // Type filter
             if (currentFilters.types.length > 0 && !currentFilters.types.includes(filament.type)) {
                 return false;
             }
-            
+
             // Color filter
             if (currentFilters.colors.length > 0 && !currentFilters.colors.includes(filament.color)) {
                 return false;
             }
-            
+
             // Spool type filter
             if (currentFilters.spoolTypes.length > 0 && !currentFilters.spoolTypes.includes(filament.spool_type)) {
                 return false;
             }
-            
+
             // Date range filter
             if (currentFilters.dateFrom || currentFilters.dateTo) {
                 const filamentDate = filament.purchase_date ? new Date(filament.purchase_date) : null;
-                
+
                 if (currentFilters.dateFrom) {
                     const fromDate = new Date(currentFilters.dateFrom);
                     if (!filamentDate || filamentDate < fromDate) {
                         return false;
                     }
                 }
-                
+
                 if (currentFilters.dateTo) {
                     const toDate = new Date(currentFilters.dateTo);
                     if (!filamentDate || filamentDate > toDate) {
@@ -1959,24 +2027,24 @@ function applyFiltersAndSearch() {
                     }
                 }
             }
-            
+
             // Weight range filter
             if (currentFilters.weightMin !== null || currentFilters.weightMax !== null) {
                 const weight = filament.weight_remaining || 0;
-                
+
                 if (currentFilters.weightMin !== null && weight < currentFilters.weightMin) {
                     return false;
                 }
-                
+
                 if (currentFilters.weightMax !== null && weight > currentFilters.weightMax) {
                     return false;
                 }
             }
-            
+
             return true;
         });
     }
-    
+
     renderFilaments(filteredFilaments);
     updateStats(filteredFilaments);
 }
@@ -2026,3 +2094,244 @@ function openTab(evt, tabName) {
     document.getElementById(tabName).style.display = "block";
     evt.currentTarget.className += " active";
 }
+
+// ==================== Admin Panel Functions ====================
+
+// Show admin modal
+async function showAdminModal() {
+    const adminModal = document.getElementById('adminModal');
+    if (!adminModal) return;
+
+    adminModal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+
+    await loadUsers();
+}
+
+// Close admin modal
+function closeAdminModal() {
+    const adminModal = document.getElementById('adminModal');
+    if (adminModal) {
+        adminModal.classList.remove('show');
+        document.body.style.overflow = '';
+    }
+}
+
+// Load all users
+async function loadUsers() {
+    const usersTableBody = document.getElementById('usersTableBody');
+    const usersLoading = document.getElementById('usersLoading');
+
+    if (!usersTableBody) return;
+
+    // Show loading
+    usersTableBody.innerHTML = '';
+    if (usersLoading) usersLoading.style.display = 'block';
+
+    try {
+        const users = await apiCall('/admin/users');
+
+        if (usersLoading) usersLoading.style.display = 'none';
+
+        if (users.length === 0) {
+            usersTableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px;">No users found</td></tr>';
+            return;
+        }
+
+        usersTableBody.innerHTML = users.map(user => {
+            const isCurrentUser = currentUser && currentUser.id === user.id;
+            const createdDate = new Date(user.created_at).toLocaleDateString();
+
+            return `
+                <tr class="${isCurrentUser ? 'current-user' : ''}">
+                    <td>${user.id}</td>
+                    <td>
+                        <div class="user-name-cell">
+                            <i class="fas fa-user-circle"></i>
+                            <span>${escapeHtml(user.username)}</span>
+                            ${isCurrentUser ? '<span class="you-badge">You</span>' : ''}
+                        </div>
+                    </td>
+                    <td>
+                        <span class="table-role-badge ${user.role}">${user.role}</span>
+                    </td>
+                    <td>${createdDate}</td>
+                    <td>
+                        <div class="table-actions">
+                            ${!isCurrentUser ? `
+                                <button class="btn btn-secondary btn-small" onclick="toggleUserRole(${user.id}, '${user.role}', '${escapeHtml(user.username)}')" title="Toggle Role">
+                                    <i class="fas fa-user-shield"></i>
+                                </button>
+                            ` : ''}
+                            <button class="btn btn-secondary btn-small" onclick="showChangePasswordModal(${user.id}, '${escapeHtml(user.username)}')" title="Change Password">
+                                <i class="fas fa-key"></i>
+                            </button>
+                            ${!isCurrentUser ? `
+                                <button class="btn btn-danger btn-small" onclick="showDeleteUserModal(${user.id}, '${escapeHtml(user.username)}')" title="Delete User">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            ` : ''}
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+    } catch (error) {
+        if (usersLoading) usersLoading.style.display = 'none';
+        usersTableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #dc3545; padding: 20px;">Error loading users</td></tr>';
+        console.error('Failed to load users:', error);
+    }
+}
+
+// Toggle user role
+async function toggleUserRole(userId, currentRole, username) {
+    const newRole = currentRole === 'admin' ? 'user' : 'admin';
+
+    if (!confirm(`Change ${username}'s role from "${currentRole}" to "${newRole}"?`)) {
+        return;
+    }
+
+    try {
+        await apiCall(`/admin/users/${userId}/role`, {
+            method: 'PUT',
+            body: JSON.stringify({ role: newRole })
+        });
+
+        showToast(`${username}'s role changed to ${newRole}`, 'success');
+        await loadUsers();
+    } catch (error) {
+        console.error('Failed to change role:', error);
+    }
+}
+
+// Show change password modal
+function showChangePasswordModal(userId, username) {
+    const modal = document.getElementById('changePasswordModal');
+    const usernameDisplay = document.getElementById('changePasswordUsername');
+    const userIdInput = document.getElementById('changePasswordUserId');
+    const form = document.getElementById('changePasswordForm');
+
+    if (!modal) return;
+
+    // Reset form
+    form.reset();
+
+    // Set values
+    usernameDisplay.textContent = username;
+    userIdInput.value = userId;
+
+    // Show modal
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+
+    // Focus on password field
+    setTimeout(() => {
+        document.getElementById('newPassword').focus();
+    }, 100);
+}
+
+// Close change password modal
+function closeChangePasswordModal() {
+    const modal = document.getElementById('changePasswordModal');
+    if (modal) {
+        modal.classList.remove('show');
+        document.body.style.overflow = '';
+    }
+}
+
+// Handle change password form submit
+document.addEventListener('DOMContentLoaded', () => {
+    const changePasswordForm = document.getElementById('changePasswordForm');
+    if (changePasswordForm) {
+        changePasswordForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const userId = document.getElementById('changePasswordUserId').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmNewPassword').value;
+
+            if (newPassword !== confirmPassword) {
+                showToast('Passwords do not match', 'error');
+                return;
+            }
+
+            if (newPassword.length < 6) {
+                showToast('Password must be at least 6 characters', 'error');
+                return;
+            }
+
+            try {
+                await apiCall(`/admin/users/${userId}/password`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ newPassword })
+                });
+
+                showToast('Password changed successfully', 'success');
+                closeChangePasswordModal();
+            } catch (error) {
+                console.error('Failed to change password:', error);
+            }
+        });
+    }
+
+    // Delete user confirmation button
+    const confirmDeleteUserBtn = document.getElementById('confirmDeleteUserBtn');
+    if (confirmDeleteUserBtn) {
+        confirmDeleteUserBtn.addEventListener('click', confirmDeleteUser);
+    }
+});
+
+// Show delete user modal
+function showDeleteUserModal(userId, username) {
+    const modal = document.getElementById('deleteUserModal');
+    const usernameDisplay = document.getElementById('deleteUserUsername');
+    const userIdInput = document.getElementById('deleteUserId');
+
+    if (!modal) return;
+
+    usernameDisplay.textContent = username;
+    userIdInput.value = userId;
+
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+
+// Close delete user modal
+function closeDeleteUserModal() {
+    const modal = document.getElementById('deleteUserModal');
+    if (modal) {
+        modal.classList.remove('show');
+        document.body.style.overflow = '';
+    }
+}
+
+// Confirm delete user
+async function confirmDeleteUser() {
+    const userId = document.getElementById('deleteUserId').value;
+
+    if (!userId) return;
+
+    try {
+        await apiCall(`/admin/users/${userId}`, {
+            method: 'DELETE'
+        });
+
+        showToast('User deleted successfully', 'success');
+        closeDeleteUserModal();
+        await loadUsers();
+    } catch (error) {
+        console.error('Failed to delete user:', error);
+    }
+}
+
+// Export admin functions for global access
+window.showAdminModal = showAdminModal;
+window.closeAdminModal = closeAdminModal;
+window.toggleUserRole = toggleUserRole;
+window.showChangePasswordModal = showChangePasswordModal;
+window.closeChangePasswordModal = closeChangePasswordModal;
+window.showDeleteUserModal = showDeleteUserModal;
+window.closeDeleteUserModal = closeDeleteUserModal;
+window.confirmDeleteUser = confirmDeleteUser;
+window.openTab = openTab;

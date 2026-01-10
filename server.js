@@ -3,13 +3,20 @@ const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const path = require('path');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || 'filament-tracker-secret-key-change-in-production';
+const JWT_EXPIRES_IN = '7d';
+const JWT_REMEMBER_EXPIRES_IN = '30d';
 
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
+app.use(cookieParser());
 app.use(express.static('public'));
 
 // Database setup
@@ -35,36 +42,82 @@ function initializeDatabase() {
       purchase_date TEXT,
       notes TEXT,
       is_archived BOOLEAN DEFAULT 0,
+      user_id INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `;
-  
+
+  const createUsersQuery = `
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('user', 'admin')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `;
+
   const createCustomBrandsQuery = `
     CREATE TABLE IF NOT EXISTS custom_brands (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      name TEXT NOT NULL,
+      user_id INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE(name, user_id)
     )
   `;
-  
+
   const createCustomColorsQuery = `
     CREATE TABLE IF NOT EXISTS custom_colors (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
       hex_code TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      user_id INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE(name, user_id)
     )
   `;
-  
+
   const createCustomTypesQuery = `
     CREATE TABLE IF NOT EXISTS custom_types (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      name TEXT NOT NULL,
+      user_id INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE(name, user_id)
     )
   `;
-  
+
+  // Helper function to add user_id column if it doesn't exist
+  const addUserIdColumn = (tableName, callback) => {
+    db.all(`PRAGMA table_info(${tableName})`, (err, columns) => {
+      if (err) {
+        console.error(`Error getting ${tableName} table info:`, err.message);
+        if (callback) callback();
+        return;
+      }
+
+      const userIdExists = columns.some(col => col.name === 'user_id');
+      if (!userIdExists) {
+        db.run(`ALTER TABLE ${tableName} ADD COLUMN user_id INTEGER`, (err) => {
+          if (err) {
+            console.error(`Error adding user_id column to ${tableName}:`, err.message);
+          } else {
+            console.log(`user_id column added to ${tableName} table`);
+          }
+          if (callback) callback();
+        });
+      } else {
+        if (callback) callback();
+      }
+    });
+  };
+
   db.run(createTableQuery, (err) => {
     if (err) {
       console.error('Error creating filaments table:', err.message);
@@ -75,9 +128,9 @@ function initializeDatabase() {
           console.error("Error getting table info:", err.message);
           return;
         }
-        
-        const columnExists = columns.some(col => col.name === 'is_archived');
-        if (!columnExists) {
+
+        const isArchivedExists = columns.some(col => col.name === 'is_archived');
+        if (!isArchivedExists) {
           db.run('ALTER TABLE filaments ADD COLUMN is_archived BOOLEAN DEFAULT 0', (err) => {
             if (err) {
               console.error('Error adding is_archived column:', err.message);
@@ -86,46 +139,479 @@ function initializeDatabase() {
             }
           });
         }
+
+        // Add user_id column if it doesn't exist
+        addUserIdColumn('filaments');
       });
       console.log('Filaments table ready');
     }
   });
-  
+
   db.run(createCustomBrandsQuery, (err) => {
     if (err) {
       console.error('Error creating custom_brands table:', err.message);
     } else {
+      addUserIdColumn('custom_brands');
       console.log('Custom brands table ready');
     }
   });
-  
+
   db.run(createCustomColorsQuery, (err) => {
     if (err) {
       console.error('Error creating custom_colors table:', err.message);
     } else {
+      addUserIdColumn('custom_colors');
       console.log('Custom colors table ready');
     }
   });
-  
+
   db.run(createCustomTypesQuery, (err) => {
     if (err) {
       console.error('Error creating custom_types table:', err.message);
     } else {
+      addUserIdColumn('custom_types');
       console.log('Custom types table ready');
+    }
+  });
+
+  db.run(createUsersQuery, (err) => {
+    if (err) {
+      console.error('Error creating users table:', err.message);
+    } else {
+      console.log('Users table ready');
+      // Check if any users exist for setup status logging
+      db.get('SELECT COUNT(*) as count FROM users', (err, row) => {
+        if (err) {
+          console.error('Error checking users:', err.message);
+          return;
+        }
+        if (row.count === 0) {
+          console.log('No users found - initial setup required');
+        } else {
+          console.log(`${row.count} user(s) found in database`);
+        }
+      });
     }
   });
 }
 
-// API Routes
+// Admin authorization middleware
+const requireAdmin = (req, res, next) => {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  next();
+};
 
-// Get all filaments
-app.get('/api/filaments', (req, res) => {
+// Authentication Middleware
+const authenticateToken = (req, res, next) => {
+  const token = req.cookies.auth_token;
+
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (error) {
+    res.clearCookie('auth_token');
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+};
+
+// Optional auth - adds user info if logged in but doesn't require it
+const optionalAuth = (req, res, next) => {
+  const token = req.cookies.auth_token;
+
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      req.user = decoded;
+    } catch (error) {
+      // Token is invalid, clear it
+      res.clearCookie('auth_token');
+    }
+  }
+  next();
+};
+
+// ==================== Auth Routes ====================
+
+// Check if initial setup is required (no users exist)
+app.get('/api/auth/setup-required', (req, res) => {
+  db.get('SELECT COUNT(*) as count FROM users', (err, row) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+    res.json({ setupRequired: row.count === 0 });
+  });
+});
+
+// Initial setup - create admin account and migrate existing data
+app.post('/api/auth/setup', async (req, res) => {
+  const { password, confirmPassword } = req.body;
+
+  // Validation
+  if (!password || !confirmPassword) {
+    return res.status(400).json({ error: 'Password and confirmation are required' });
+  }
+
+  if (password !== confirmPassword) {
+    return res.status(400).json({ error: 'Passwords do not match' });
+  }
+
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  }
+
+  try {
+    // Check if setup is still needed (no users exist)
+    db.get('SELECT COUNT(*) as count FROM users', async (err, row) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+
+      if (row.count > 0) {
+        return res.status(400).json({ error: 'Initial setup has already been completed' });
+      }
+
+      // Hash password and create admin user
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+
+      db.run(
+        'INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
+        ['admin', hashedPassword, 'admin'],
+        function (err) {
+          if (err) {
+            return res.status(500).json({ error: 'Error creating admin account' });
+          }
+
+          const adminUserId = this.lastID;
+          console.log(`Admin account created through initial setup (ID: ${adminUserId})`);
+
+          // Migrate existing data from pre-authentication version
+          // All records with NULL user_id will be assigned to the admin
+          const migrationTables = ['filaments', 'custom_brands', 'custom_colors', 'custom_types'];
+          let migratedCounts = {};
+          let completedMigrations = 0;
+
+          migrationTables.forEach(table => {
+            db.run(
+              `UPDATE ${table} SET user_id = ? WHERE user_id IS NULL`,
+              [adminUserId],
+              function (err) {
+                if (err) {
+                  console.error(`Error migrating ${table}:`, err.message);
+                  migratedCounts[table] = 0;
+                } else {
+                  migratedCounts[table] = this.changes;
+                  if (this.changes > 0) {
+                    console.log(`Migrated ${this.changes} existing ${table} to admin user`);
+                  }
+                }
+
+                completedMigrations++;
+
+                // When all migrations are done, send response
+                if (completedMigrations === migrationTables.length) {
+                  const totalMigrated = Object.values(migratedCounts).reduce((a, b) => a + b, 0);
+
+                  let message = 'Admin account created successfully';
+                  if (totalMigrated > 0) {
+                    message += `. Migrated ${totalMigrated} existing items to admin inventory.`;
+                    console.log(`Total items migrated to admin: ${totalMigrated}`);
+                  }
+
+                  res.status(201).json({
+                    message,
+                    username: 'admin',
+                    migrated: migratedCounts
+                  });
+                }
+              }
+            );
+          });
+        }
+      );
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/auth/register', async (req, res) => {
+  const { username, password } = req.body;
+
+  // Validation
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password are required' });
+  }
+
+  if (username.length < 3) {
+    return res.status(400).json({ error: 'Username must be at least 3 characters' });
+  }
+
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  }
+
+  try {
+    // Check if user already exists
+    db.get('SELECT id FROM users WHERE username = ?', [username], async (err, existingUser) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+
+      if (existingUser) {
+        return res.status(409).json({ error: 'Username already exists' });
+      }
+
+      // Hash password
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+
+      // Insert new user
+      db.run(
+        'INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
+        [username, hashedPassword, 'user'],
+        function (err) {
+          if (err) {
+            return res.status(500).json({ error: 'Error creating user' });
+          }
+
+          res.status(201).json({
+            message: 'User created successfully',
+            userId: this.lastID
+          });
+        }
+      );
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Login
+app.post('/api/auth/login', (req, res) => {
+  const { username, password, rememberMe } = req.body;
+
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password are required' });
+  }
+
+  db.get('SELECT * FROM users WHERE username = ?', [username], async (err, user) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
+
+    try {
+      const validPassword = await bcrypt.compare(password, user.password_hash);
+
+      if (!validPassword) {
+        return res.status(401).json({ error: 'Invalid username or password' });
+      }
+
+      // Create JWT token
+      const tokenPayload = {
+        userId: user.id,
+        username: user.username,
+        role: user.role
+      };
+
+      const expiresIn = rememberMe ? JWT_REMEMBER_EXPIRES_IN : JWT_EXPIRES_IN;
+      const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn });
+
+      // Set cookie
+      const maxAge = rememberMe ? 30 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
+      res.cookie('auth_token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge
+      });
+
+      res.json({
+        message: 'Login successful',
+        user: {
+          id: user.id,
+          username: user.username,
+          role: user.role
+        }
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
+});
+
+// Logout
+app.post('/api/auth/logout', (req, res) => {
+  res.clearCookie('auth_token');
+  res.json({ message: 'Logged out successfully' });
+});
+
+// Check authentication status
+app.get('/api/auth/check', authenticateToken, (req, res) => {
+  res.json({
+    authenticated: true,
+    user: {
+      id: req.user.userId,
+      username: req.user.username,
+      role: req.user.role
+    }
+  });
+});
+
+// Get current user profile
+app.get('/api/auth/profile', authenticateToken, (req, res) => {
+  db.get('SELECT id, username, role, created_at FROM users WHERE id = ?', [req.user.userId], (err, user) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json(user);
+  });
+});
+
+// ==================== Admin Routes ====================
+
+// Get all users (admin only)
+app.get('/api/admin/users', authenticateToken, requireAdmin, (req, res) => {
+  db.all('SELECT id, username, role, created_at FROM users ORDER BY created_at DESC', [], (err, users) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+    res.json(users);
+  });
+});
+
+// Delete a user (admin only)
+app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, (req, res) => {
+  const { id } = req.params;
+  const targetUserId = parseInt(id);
+
+  // Prevent admin from deleting themselves
+  if (targetUserId === req.user.userId) {
+    return res.status(400).json({ error: 'Cannot delete your own account' });
+  }
+
+  // Check if user exists
+  db.get('SELECT id, username FROM users WHERE id = ?', [targetUserId], (err, user) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Delete user (cascades to delete their data due to foreign keys)
+    db.run('DELETE FROM users WHERE id = ?', [targetUserId], function (err) {
+      if (err) {
+        return res.status(500).json({ error: 'Error deleting user' });
+      }
+      res.json({ message: `User "${user.username}" deleted successfully` });
+    });
+  });
+});
+
+// Change user password (admin only)
+app.put('/api/admin/users/:id/password', authenticateToken, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { newPassword } = req.body;
+  const targetUserId = parseInt(id);
+
+  if (!newPassword) {
+    return res.status(400).json({ error: 'New password is required' });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  }
+
+  try {
+    // Check if user exists
+    db.get('SELECT id, username FROM users WHERE id = ?', [targetUserId], async (err, user) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      // Hash new password
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+      // Update password
+      db.run('UPDATE users SET password_hash = ? WHERE id = ?', [hashedPassword, targetUserId], function (err) {
+        if (err) {
+          return res.status(500).json({ error: 'Error updating password' });
+        }
+        res.json({ message: `Password for "${user.username}" updated successfully` });
+      });
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Change user role (admin only)
+app.put('/api/admin/users/:id/role', authenticateToken, requireAdmin, (req, res) => {
+  const { id } = req.params;
+  const { role } = req.body;
+  const targetUserId = parseInt(id);
+
+  if (!role || !['user', 'admin'].includes(role)) {
+    return res.status(400).json({ error: 'Valid role (user or admin) is required' });
+  }
+
+  // Prevent admin from changing their own role
+  if (targetUserId === req.user.userId) {
+    return res.status(400).json({ error: 'Cannot change your own role' });
+  }
+
+  db.get('SELECT id, username FROM users WHERE id = ?', [targetUserId], (err, user) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    db.run('UPDATE users SET role = ? WHERE id = ?', [role, targetUserId], function (err) {
+      if (err) {
+        return res.status(500).json({ error: 'Error updating role' });
+      }
+      res.json({ message: `Role for "${user.username}" updated to ${role}` });
+    });
+  });
+});
+
+// ==================== Protected API Routes ====================
+// Apply authentication middleware to all filament routes
+
+// Get all filaments (user's own filaments only)
+app.get('/api/filaments', authenticateToken, (req, res) => {
   const query = `
-    SELECT * FROM filaments WHERE is_archived = 0
+    SELECT * FROM filaments WHERE is_archived = 0 AND user_id = ?
     ORDER BY created_at DESC
   `;
-  
-  db.all(query, [], (err, rows) => {
+
+  db.all(query, [req.user.userId], (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -134,38 +620,38 @@ app.get('/api/filaments', (req, res) => {
   });
 });
 
-// Get used filaments
-app.get('/api/filaments/used', (req, res) => {
-    const query = `
-      SELECT * FROM filaments WHERE is_archived = 1
+// Get used filaments (user's own only)
+app.get('/api/filaments/used', authenticateToken, (req, res) => {
+  const query = `
+      SELECT * FROM filaments WHERE is_archived = 1 AND user_id = ?
       ORDER BY updated_at DESC
     `;
-    
-    db.all(query, [], (err, rows) => {
-      if (err) {
-        res.status(500).json({ error: err.message });
-        return;
-      }
-      res.json(rows);
-    });
-  });
 
-// Search filaments
-app.get('/api/filaments/search', (req, res) => {
+  db.all(query, [req.user.userId], (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    res.json(rows);
+  });
+});
+
+// Search filaments (user's own only)
+app.get('/api/filaments/search', authenticateToken, (req, res) => {
   const { q } = req.query;
   if (!q) {
     return res.status(400).json({ error: 'Search query required' });
   }
-  
+
   const query = `
     SELECT * FROM filaments 
-    WHERE brand LIKE ? OR type LIKE ? OR color LIKE ? OR notes LIKE ?
+    WHERE user_id = ? AND (brand LIKE ? OR type LIKE ? OR color LIKE ? OR notes LIKE ?)
     ORDER BY created_at DESC
   `;
-  
+
   const searchTerm = `%${q}%`;
-  
-  db.all(query, [searchTerm, searchTerm, searchTerm, searchTerm], (err, rows) => {
+
+  db.all(query, [req.user.userId, searchTerm, searchTerm, searchTerm, searchTerm], (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -174,11 +660,11 @@ app.get('/api/filaments/search', (req, res) => {
   });
 });
 
-// Get single filament
-app.get('/api/filaments/:id', (req, res) => {
+// Get single filament (user's own only)
+app.get('/api/filaments/:id', authenticateToken, (req, res) => {
   const { id } = req.params;
-  
-  db.get('SELECT * FROM filaments WHERE id = ?', [id], (err, row) => {
+
+  db.get('SELECT * FROM filaments WHERE id = ? AND user_id = ?', [id, req.user.userId], (err, row) => {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -191,20 +677,20 @@ app.get('/api/filaments/:id', (req, res) => {
   });
 });
 
-// Add new filament
-app.post('/api/filaments', (req, res) => {
+// Add new filament (associated with current user)
+app.post('/api/filaments', authenticateToken, (req, res) => {
   const { brand, type, color, spool_type, weight_remaining, purchase_date, notes } = req.body;
-  
+
   if (!brand || !type || !color || !spool_type) {
     return res.status(400).json({ error: 'Brand, type, color, and spool_type are required' });
   }
-  
+
   const query = `
-    INSERT INTO filaments (brand, type, color, spool_type, weight_remaining, purchase_date, notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO filaments (brand, type, color, spool_type, weight_remaining, purchase_date, notes, user_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `;
-  
-  db.run(query, [brand, type, color, spool_type, weight_remaining || 1000, purchase_date, notes], function(err) {
+
+  db.run(query, [brand, type, color, spool_type, weight_remaining || 1000, purchase_date, notes, req.user.userId], function (err) {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -213,19 +699,19 @@ app.post('/api/filaments', (req, res) => {
   });
 });
 
-// Update filament
-app.put('/api/filaments/:id', (req, res) => {
+// Update filament (user's own only)
+app.put('/api/filaments/:id', authenticateToken, (req, res) => {
   const { id } = req.params;
   const { brand, type, color, spool_type, weight_remaining, purchase_date, notes } = req.body;
-  
+
   const query = `
     UPDATE filaments 
     SET brand = ?, type = ?, color = ?, spool_type = ?, weight_remaining = ?, 
         purchase_date = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
-    WHERE id = ?
+    WHERE id = ? AND user_id = ?
   `;
-  
-  db.run(query, [brand, type, color, spool_type, weight_remaining, purchase_date, notes, id], function(err) {
+
+  db.run(query, [brand, type, color, spool_type, weight_remaining, purchase_date, notes, id, req.user.userId], function (err) {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -238,52 +724,52 @@ app.put('/api/filaments/:id', (req, res) => {
   });
 });
 
-// Use filament
-app.post('/api/filaments/:id/use', (req, res) => {
-    const { id } = req.params;
-    const { usageType, amount } = req.body;
+// Use filament (user's own only)
+app.post('/api/filaments/:id/use', authenticateToken, (req, res) => {
+  const { id } = req.params;
+  const { usageType, amount } = req.body;
 
-    db.get('SELECT weight_remaining FROM filaments WHERE id = ?', [id], (err, row) => {
-        if (err) {
-            return res.status(500).json({ error: err.message });
-        }
-        if (!row) {
-            return res.status(404).json({ error: 'Filament not found' });
-        }
+  db.get('SELECT weight_remaining FROM filaments WHERE id = ? AND user_id = ?', [id, req.user.userId], (err, row) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (!row) {
+      return res.status(404).json({ error: 'Filament not found' });
+    }
 
-        let newWeight;
-        if (usageType === 'used') {
-            newWeight = row.weight_remaining - amount;
-        } else {
-            newWeight = amount;
-        }
+    let newWeight;
+    if (usageType === 'used') {
+      newWeight = row.weight_remaining - amount;
+    } else {
+      newWeight = amount;
+    }
 
-        if (newWeight < 0) {
-            newWeight = 0;
-        }
+    if (newWeight < 0) {
+      newWeight = 0;
+    }
 
-        const isArchived = newWeight === 0;
+    const isArchived = newWeight === 0;
 
-        const query = `
+    const query = `
             UPDATE filaments 
             SET weight_remaining = ?, is_archived = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = ? AND user_id = ?
         `;
 
-        db.run(query, [newWeight, isArchived, id], function(err) {
-            if (err) {
-                return res.status(500).json({ error: err.message });
-            }
-            res.json({ message: 'Filament usage updated successfully' });
-        });
+    db.run(query, [newWeight, isArchived, id, req.user.userId], function (err) {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      res.json({ message: 'Filament usage updated successfully' });
     });
+  });
 });
 
-// Delete filament
-app.delete('/api/filaments/:id', (req, res) => {
+// Delete filament (user's own only)
+app.delete('/api/filaments/:id', authenticateToken, (req, res) => {
   const { id } = req.params;
-  
-  db.run('DELETE FROM filaments WHERE id = ?', [id], function(err) {
+
+  db.run('DELETE FROM filaments WHERE id = ? AND user_id = ?', [id, req.user.userId], function (err) {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -296,9 +782,9 @@ app.delete('/api/filaments/:id', (req, res) => {
   });
 });
 
-// Custom brands endpoints
-app.get('/api/custom-brands', (req, res) => {
-  db.all('SELECT * FROM custom_brands ORDER BY name', [], (err, rows) => {
+// Custom brands endpoints (user-specific)
+app.get('/api/custom-brands', authenticateToken, (req, res) => {
+  db.all('SELECT * FROM custom_brands WHERE user_id = ? ORDER BY name', [req.user.userId], (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -307,15 +793,15 @@ app.get('/api/custom-brands', (req, res) => {
   });
 });
 
-app.post('/api/custom-brands', (req, res) => {
+app.post('/api/custom-brands', authenticateToken, (req, res) => {
   const { name } = req.body;
   if (!name) {
     return res.status(400).json({ error: 'Brand name is required' });
   }
-  
-  db.run('INSERT INTO custom_brands (name) VALUES (?)', [name], function(err) {
+
+  db.run('INSERT INTO custom_brands (name, user_id) VALUES (?, ?)', [name, req.user.userId], function (err) {
     if (err) {
-      if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      if (err.message.includes('UNIQUE constraint failed')) {
         res.status(409).json({ error: 'Brand already exists' });
       } else {
         res.status(500).json({ error: err.message });
@@ -326,9 +812,9 @@ app.post('/api/custom-brands', (req, res) => {
   });
 });
 
-// Custom colors endpoints
-app.get('/api/custom-colors', (req, res) => {
-  db.all('SELECT * FROM custom_colors ORDER BY name', [], (err, rows) => {
+// Custom colors endpoints (user-specific)
+app.get('/api/custom-colors', authenticateToken, (req, res) => {
+  db.all('SELECT * FROM custom_colors WHERE user_id = ? ORDER BY name', [req.user.userId], (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -337,15 +823,15 @@ app.get('/api/custom-colors', (req, res) => {
   });
 });
 
-app.post('/api/custom-colors', (req, res) => {
+app.post('/api/custom-colors', authenticateToken, (req, res) => {
   const { name, hex_code } = req.body;
   if (!name || !hex_code) {
     return res.status(400).json({ error: 'Color name and hex code are required' });
   }
-  
-  db.run('INSERT INTO custom_colors (name, hex_code) VALUES (?, ?)', [name, hex_code], function(err) {
+
+  db.run('INSERT INTO custom_colors (name, hex_code, user_id) VALUES (?, ?, ?)', [name, hex_code, req.user.userId], function (err) {
     if (err) {
-      if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      if (err.message.includes('UNIQUE constraint failed')) {
         res.status(409).json({ error: 'Color already exists' });
       } else {
         res.status(500).json({ error: err.message });
@@ -356,22 +842,22 @@ app.post('/api/custom-colors', (req, res) => {
   });
 });
 
-// Update custom brand
-app.put('/api/custom-brands/:name', (req, res) => {
+// Update custom brand (user-specific)
+app.put('/api/custom-brands/:name', authenticateToken, (req, res) => {
   const { name } = req.params;
   const { newName } = req.body;
-  
+
   if (!newName) {
     return res.status(400).json({ error: 'New brand name is required' });
   }
-  
+
   const oldName = decodeURIComponent(name);
-  
+
   db.serialize(() => {
     db.run('BEGIN TRANSACTION');
-    
+
     // Update custom brand
-    db.run('UPDATE custom_brands SET name = ? WHERE name = ?', [newName, oldName], function(err) {
+    db.run('UPDATE custom_brands SET name = ? WHERE name = ? AND user_id = ?', [newName, oldName, req.user.userId], function (err) {
       if (err) {
         db.run('ROLLBACK');
         res.status(500).json({ error: err.message });
@@ -382,21 +868,21 @@ app.put('/api/custom-brands/:name', (req, res) => {
         res.status(404).json({ error: 'Custom brand not found' });
         return;
       }
-      
-      // Update all filaments using this brand
-      db.run('UPDATE filaments SET brand = ?, updated_at = CURRENT_TIMESTAMP WHERE brand = ?', [newName, oldName], function(err) {
+
+      // Update all filaments using this brand (for current user only)
+      db.run('UPDATE filaments SET brand = ?, updated_at = CURRENT_TIMESTAMP WHERE brand = ? AND user_id = ?', [newName, oldName, req.user.userId], function (err) {
         if (err) {
           db.run('ROLLBACK');
           res.status(500).json({ error: err.message });
           return;
         }
-        
+
         db.run('COMMIT', (err) => {
           if (err) {
             res.status(500).json({ error: err.message });
             return;
           }
-          res.json({ 
+          res.json({
             message: 'Custom brand updated successfully',
             filamentsUpdated: this.changes
           });
@@ -406,11 +892,11 @@ app.put('/api/custom-brands/:name', (req, res) => {
   });
 });
 
-// Delete custom brand
-app.delete('/api/custom-brands/:name', (req, res) => {
+// Delete custom brand (user-specific)
+app.delete('/api/custom-brands/:name', authenticateToken, (req, res) => {
   const { name } = req.params;
-  
-  db.run('DELETE FROM custom_brands WHERE name = ?', [decodeURIComponent(name)], function(err) {
+
+  db.run('DELETE FROM custom_brands WHERE name = ? AND user_id = ?', [decodeURIComponent(name), req.user.userId], function (err) {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -423,22 +909,22 @@ app.delete('/api/custom-brands/:name', (req, res) => {
   });
 });
 
-// Update custom color
-app.put('/api/custom-colors/:name', (req, res) => {
+// Update custom color (user-specific)
+app.put('/api/custom-colors/:name', authenticateToken, (req, res) => {
   const { name } = req.params;
   const { newName, newHexCode } = req.body;
-  
+
   if (!newName || !newHexCode) {
     return res.status(400).json({ error: 'New color name and hex code are required' });
   }
-  
+
   const oldName = decodeURIComponent(name);
-  
+
   db.serialize(() => {
     db.run('BEGIN TRANSACTION');
-    
+
     // Update custom color
-    db.run('UPDATE custom_colors SET name = ?, hex_code = ? WHERE name = ?', [newName, newHexCode, oldName], function(err) {
+    db.run('UPDATE custom_colors SET name = ?, hex_code = ? WHERE name = ? AND user_id = ?', [newName, newHexCode, oldName, req.user.userId], function (err) {
       if (err) {
         db.run('ROLLBACK');
         res.status(500).json({ error: err.message });
@@ -449,21 +935,21 @@ app.put('/api/custom-colors/:name', (req, res) => {
         res.status(404).json({ error: 'Custom color not found' });
         return;
       }
-      
-      // Update all filaments using this color
-      db.run('UPDATE filaments SET color = ?, updated_at = CURRENT_TIMESTAMP WHERE color = ?', [newName, oldName], function(err) {
+
+      // Update all filaments using this color (for current user only)
+      db.run('UPDATE filaments SET color = ?, updated_at = CURRENT_TIMESTAMP WHERE color = ? AND user_id = ?', [newName, oldName, req.user.userId], function (err) {
         if (err) {
           db.run('ROLLBACK');
           res.status(500).json({ error: err.message });
           return;
         }
-        
+
         db.run('COMMIT', (err) => {
           if (err) {
             res.status(500).json({ error: err.message });
             return;
           }
-          res.json({ 
+          res.json({
             message: 'Custom color updated successfully',
             filamentsUpdated: this.changes
           });
@@ -473,11 +959,11 @@ app.put('/api/custom-colors/:name', (req, res) => {
   });
 });
 
-// Delete custom color
-app.delete('/api/custom-colors/:name', (req, res) => {
+// Delete custom color (user-specific)
+app.delete('/api/custom-colors/:name', authenticateToken, (req, res) => {
   const { name } = req.params;
-  
-  db.run('DELETE FROM custom_colors WHERE name = ?', [decodeURIComponent(name)], function(err) {
+
+  db.run('DELETE FROM custom_colors WHERE name = ? AND user_id = ?', [decodeURIComponent(name), req.user.userId], function (err) {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -490,9 +976,9 @@ app.delete('/api/custom-colors/:name', (req, res) => {
   });
 });
 
-// Custom types endpoints
-app.get('/api/custom-types', (req, res) => {
-  db.all('SELECT * FROM custom_types ORDER BY name', [], (err, rows) => {
+// Custom types endpoints (user-specific)
+app.get('/api/custom-types', authenticateToken, (req, res) => {
+  db.all('SELECT * FROM custom_types WHERE user_id = ? ORDER BY name', [req.user.userId], (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -501,15 +987,15 @@ app.get('/api/custom-types', (req, res) => {
   });
 });
 
-app.post('/api/custom-types', (req, res) => {
+app.post('/api/custom-types', authenticateToken, (req, res) => {
   const { name } = req.body;
   if (!name) {
     return res.status(400).json({ error: 'Type name is required' });
   }
-  
-  db.run('INSERT INTO custom_types (name) VALUES (?)', [name], function(err) {
+
+  db.run('INSERT INTO custom_types (name, user_id) VALUES (?, ?)', [name, req.user.userId], function (err) {
     if (err) {
-      if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      if (err.message.includes('UNIQUE constraint failed')) {
         res.status(409).json({ error: 'Type already exists' });
       } else {
         res.status(500).json({ error: err.message });
@@ -520,22 +1006,22 @@ app.post('/api/custom-types', (req, res) => {
   });
 });
 
-// Update custom type
-app.put('/api/custom-types/:name', (req, res) => {
+// Update custom type (user-specific)
+app.put('/api/custom-types/:name', authenticateToken, (req, res) => {
   const { name } = req.params;
   const { newName } = req.body;
-  
+
   if (!newName) {
     return res.status(400).json({ error: 'New type name is required' });
   }
-  
+
   const oldName = decodeURIComponent(name);
-  
+
   db.serialize(() => {
     db.run('BEGIN TRANSACTION');
-    
+
     // Update custom type
-    db.run('UPDATE custom_types SET name = ? WHERE name = ?', [newName, oldName], function(err) {
+    db.run('UPDATE custom_types SET name = ? WHERE name = ? AND user_id = ?', [newName, oldName, req.user.userId], function (err) {
       if (err) {
         db.run('ROLLBACK');
         res.status(500).json({ error: err.message });
@@ -546,21 +1032,21 @@ app.put('/api/custom-types/:name', (req, res) => {
         res.status(404).json({ error: 'Custom type not found' });
         return;
       }
-      
-      // Update all filaments using this type
-      db.run('UPDATE filaments SET type = ?, updated_at = CURRENT_TIMESTAMP WHERE type = ?', [newName, oldName], function(err) {
+
+      // Update all filaments using this type (for current user only)
+      db.run('UPDATE filaments SET type = ?, updated_at = CURRENT_TIMESTAMP WHERE type = ? AND user_id = ?', [newName, oldName, req.user.userId], function (err) {
         if (err) {
           db.run('ROLLBACK');
           res.status(500).json({ error: err.message });
           return;
         }
-        
+
         db.run('COMMIT', (err) => {
           if (err) {
             res.status(500).json({ error: err.message });
             return;
           }
-          res.json({ 
+          res.json({
             message: 'Custom type updated successfully',
             filamentsUpdated: this.changes
           });
@@ -570,11 +1056,11 @@ app.put('/api/custom-types/:name', (req, res) => {
   });
 });
 
-// Delete custom type
-app.delete('/api/custom-types/:name', (req, res) => {
+// Delete custom type (user-specific)
+app.delete('/api/custom-types/:name', authenticateToken, (req, res) => {
   const { name } = req.params;
-  
-  db.run('DELETE FROM custom_types WHERE name = ?', [decodeURIComponent(name)], function(err) {
+
+  db.run('DELETE FROM custom_types WHERE name = ? AND user_id = ?', [decodeURIComponent(name), req.user.userId], function (err) {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -587,9 +1073,26 @@ app.delete('/api/custom-types/:name', (req, res) => {
   });
 });
 
-// Serve the main page
+// Serve the login page
+app.get('/login', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+// Serve the main page (protected)
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  const token = req.cookies.auth_token;
+
+  if (!token) {
+    return res.redirect('/login');
+  }
+
+  try {
+    jwt.verify(token, JWT_SECRET);
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  } catch (error) {
+    res.clearCookie('auth_token');
+    return res.redirect('/login');
+  }
 });
 
 // Health check endpoint for K8s

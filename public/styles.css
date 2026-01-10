@@ -21,9 +21,17 @@ body {
 
 /* Header */
 .header {
-    text-align: center;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 30px;
     color: white;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.header-main {
+    text-align: left;
 }
 
 .header h1 {
@@ -32,7 +40,6 @@ body {
     font-weight: 700;
     display: flex;
     align-items: center;
-    justify-content: center;
     gap: 15px;
 }
 
@@ -46,6 +53,76 @@ body {
 .header p {
     font-size: 1.1rem;
     opacity: 0.9;
+}
+
+/* User Menu */
+.user-menu {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    padding: 10px 20px;
+    border-radius: 50px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: white;
+    font-weight: 500;
+}
+
+.user-info i {
+    font-size: 1.5rem;
+    opacity: 0.9;
+}
+
+.user-info span {
+    font-size: 0.95rem;
+}
+
+.btn-logout {
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 8px 16px;
+    border-radius: 25px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-logout:hover {
+    background: rgba(255, 255, 255, 0.25);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.btn-logout i {
+    font-size: 1rem;
+}
+
+@media (max-width: 768px) {
+    .header {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .header-main {
+        text-align: center;
+    }
+
+    .user-menu {
+        width: 100%;
+        justify-content: center;
+    }
 }
 
 /* Controls */
@@ -466,6 +543,7 @@ body {
         opacity: 0;
         transform: translateY(-10px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -793,8 +871,13 @@ select::-ms-expand {
 
 /* Animations */
 @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
 }
 
 @keyframes slideUp {
@@ -802,6 +885,7 @@ select::-ms-expand {
         opacity: 0;
         transform: translateY(30px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -813,46 +897,46 @@ select::-ms-expand {
     .container {
         padding: 15px;
     }
-    
+
     .header h1 {
         font-size: 2rem;
     }
-    
+
     .controls {
         flex-direction: column;
     }
-    
+
     .search-container {
         min-width: 100%;
     }
-    
+
     .filament-grid {
         grid-template-columns: 1fr;
     }
-    
+
     .stats {
         grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
     }
-    
+
     .stat-number {
         font-size: 1.5rem;
     }
-    
+
     .form-actions {
         flex-direction: column;
     }
-    
+
     .btn {
         justify-content: center;
     }
-    
+
     /* Mobile modal improvements */
     .modal {
         padding: 10px;
         align-items: flex-start;
         justify-content: center;
     }
-    
+
     .modal-content {
         width: 100%;
         max-width: none;
@@ -860,16 +944,16 @@ select::-ms-expand {
         margin: 0;
         border-radius: 12px;
     }
-    
+
     .modal-header {
         padding: 20px 20px 15px 20px;
         flex-shrink: 0;
     }
-    
+
     .modal-header h2 {
         font-size: 1.3rem;
     }
-    
+
     .modal-body {
         overflow-y: auto;
         flex: 1;
@@ -880,11 +964,11 @@ select::-ms-expand {
         scrollbar-width: auto;
         scrollbar-color: #667eea #f1f1f1;
     }
-    
+
     .modal-body form {
         padding: 0;
     }
-    
+
     .form-actions {
         padding: 15px 20px 20px 20px;
         margin-top: 0;
@@ -892,74 +976,75 @@ select::-ms-expand {
         background: #f8f9fa;
         border-top: 1px solid #eee;
     }
-    
+
     .form-group {
         margin-bottom: 15px;
     }
-    
+
     .form-group input,
     .form-group select,
     .form-group textarea {
         padding: 10px;
-        font-size: 16px; /* Prevents zoom on iOS */
+        font-size: 16px;
+        /* Prevents zoom on iOS */
     }
-    
+
     .dropdown-selected {
         padding: 10px;
     }
-    
+
     .color-picker-container {
         padding: 12px;
     }
-    
+
     .filament-header {
         flex-direction: column;
         gap: 10px;
     }
-    
+
     .filament-actions {
         align-self: flex-end;
     }
-    
+
     /* Modern compact filter panel responsive adjustments */
     .filters-content {
         flex-direction: column;
         padding: 16px 20px;
         gap: 12px;
     }
-    
+
     .filters-header {
         padding: 12px 20px;
         flex-direction: row;
         gap: 10px;
     }
-    
+
     .filters-header h3 {
         font-size: 1rem;
     }
-    
+
     .filters-actions {
         gap: 6px;
     }
-    
+
     .filter-group {
         min-width: unset;
         max-width: unset;
         flex: unset;
     }
-    
+
     .filter-group.range-group {
         min-width: unset;
         max-width: unset;
     }
-    
+
     .date-range,
     .weight-range {
         flex-direction: column;
         gap: 6px;
         align-items: stretch;
     }
-    
+
     .date-range input,
     .weight-range input {
         min-width: unset;
@@ -967,19 +1052,19 @@ select::-ms-expand {
         height: 40px;
         font-size: 14px;
     }
-    
+
     .date-range span,
     .weight-range span {
         text-align: center;
         padding: 4px 0;
         font-size: 0.8rem;
     }
-    
+
     .active-filters {
         padding: 0 20px;
         margin-bottom: 12px;
     }
-    
+
     .filter-chip {
         font-size: 0.7rem;
         padding: 3px 8px;
@@ -990,38 +1075,38 @@ select::-ms-expand {
     .header h1 {
         font-size: 1.8rem;
     }
-    
+
     .filament-card {
         padding: 15px;
     }
-    
+
     .stat-card {
         padding: 15px;
     }
-    
+
     .btn {
         padding: 10px 16px;
         font-size: 14px;
     }
-    
+
     /* Extra small mobile modal adjustments */
     .modal {
         padding: 5px;
     }
-    
+
     .modal-content {
         max-height: calc(100vh - 10px);
         border-radius: 8px;
     }
-    
+
     .modal-header {
         padding: 15px 15px 10px 15px;
     }
-    
+
     .modal-header h2 {
         font-size: 1.2rem;
     }
-    
+
     .modal-body {
         padding: 15px;
         overflow-y: auto;
@@ -1029,22 +1114,22 @@ select::-ms-expand {
         scrollbar-width: auto;
         scrollbar-color: #667eea #f1f1f1;
     }
-    
+
     .modal-body form {
         padding: 0;
     }
-    
+
     .form-actions {
         padding: 12px 15px 15px 15px;
         margin-top: 0;
         background: #f8f9fa;
         border-top: 1px solid #eee;
     }
-    
+
     .form-group {
         margin-bottom: 12px;
     }
-    
+
     .dropdown-options {
         max-height: 150px;
     }
@@ -1056,13 +1141,13 @@ select::-ms-expand {
         background: white;
         color: black;
     }
-    
+
     .controls,
     .filament-actions,
     .modal {
         display: none !important;
     }
-    
+
     .filament-card {
         break-inside: avoid;
         box-shadow: none;
@@ -1075,7 +1160,7 @@ select::-ms-expand {
     .btn {
         border: 2px solid currentColor;
     }
-    
+
     .filament-card {
         border: 2px solid #333;
     }
@@ -1270,6 +1355,7 @@ select::-ms-expand {
         opacity: 0;
         transform: translateX(-10px);
     }
+
     to {
         opacity: 1;
         transform: translateX(0);
@@ -1342,5 +1428,292 @@ select::-ms-expand {
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
+    }
+}
+
+/* ==================== Admin Panel Styles ==================== */
+
+/* Role Badge */
+.role-badge {
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-left: 8px;
+}
+
+.role-badge.admin {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+}
+
+.role-badge.user {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+/* Admin Button */
+.btn-admin {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 25px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-admin:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(245, 87, 108, 0.4);
+}
+
+/* Large Modal */
+.modal-large {
+    max-width: 900px;
+    width: 95%;
+}
+
+/* Admin Info Banner */
+.admin-info-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 15px 20px;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+    border-radius: 10px;
+    margin-bottom: 20px;
+    border-left: 4px solid #667eea;
+}
+
+.admin-info-banner i {
+    color: #667eea;
+    font-size: 1.2rem;
+}
+
+.admin-info-banner span {
+    color: #4a5568;
+    font-size: 0.9rem;
+}
+
+/* Users Table Container */
+.users-table-container {
+    max-height: 400px;
+    overflow-y: auto;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+}
+
+/* Users Table */
+.users-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.users-table thead {
+    position: sticky;
+    top: 0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    z-index: 1;
+}
+
+.users-table thead th {
+    color: white;
+    padding: 14px 16px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.users-table tbody tr {
+    border-bottom: 1px solid #f0f0f0;
+    transition: background-color 0.2s ease;
+}
+
+.users-table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+.users-table tbody tr.current-user {
+    background-color: rgba(102, 126, 234, 0.08);
+}
+
+.users-table tbody td {
+    padding: 14px 16px;
+    vertical-align: middle;
+}
+
+/* Table Role Badge */
+.table-role-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    border-radius: 15px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: capitalize;
+}
+
+.table-role-badge.admin {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+}
+
+.table-role-badge.user {
+    background: #e2e8f0;
+    color: #4a5568;
+}
+
+/* Table Actions */
+.table-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.table-actions .btn {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+}
+
+.table-actions .btn i {
+    font-size: 0.85rem;
+}
+
+/* Admin Loading */
+.admin-loading {
+    text-align: center;
+    padding: 40px;
+    color: #667eea;
+    font-size: 1.1rem;
+}
+
+.admin-loading i {
+    margin-right: 10px;
+}
+
+/* Warning Box */
+.warning-box {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 15px 20px;
+    background: #fff3cd;
+    border-radius: 10px;
+    margin-top: 15px;
+    border-left: 4px solid #ffc107;
+}
+
+.warning-box i {
+    color: #856404;
+    font-size: 1.2rem;
+    margin-top: 2px;
+}
+
+.warning-box span {
+    color: #856404;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+/* Role Select in Table */
+.role-select-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.role-select-wrapper select {
+    padding: 4px 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    background: white;
+    cursor: pointer;
+    min-width: 80px;
+}
+
+.role-select-wrapper select:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+/* User Name Cell */
+.user-name-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.user-name-cell i {
+    color: #667eea;
+    font-size: 1.3rem;
+}
+
+.user-name-cell .you-badge {
+    background: #667eea;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+/* Responsive Admin Styles */
+@media (max-width: 768px) {
+    .modal-large {
+        max-width: 100%;
+    }
+
+    .users-table-container {
+        max-height: 300px;
+    }
+
+    .users-table thead th,
+    .users-table tbody td {
+        padding: 10px 12px;
+        font-size: 0.8rem;
+    }
+
+    .table-actions {
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .table-actions .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .btn-admin span {
+        display: none;
+    }
+
+    .role-badge {
+        font-size: 0.65rem;
+        padding: 2px 8px;
+    }
+}
+
+@media (max-width: 480px) {
+
+    .users-table thead th:nth-child(1),
+    .users-table tbody td:nth-child(1) {
+        display: none;
+    }
+
+    .users-table thead th:nth-child(4),
+    .users-table tbody td:nth-child(4) {
+        display: none;
     }
 }
