@@ -141,6 +141,30 @@ function initializeDatabase() {
           });
         }
 
+        // Add color_hex column if it doesn't exist
+        const colorHexExists = columns.some(col => col.name === 'color_hex');
+        if (!colorHexExists) {
+          db.run('ALTER TABLE filaments ADD COLUMN color_hex TEXT', (err) => {
+            if (err) {
+              console.error('Error adding color_hex column:', err.message);
+            } else {
+              console.log('color_hex column added to filaments table');
+              // Auto-populate color_hex from custom_colors table
+              db.run(`UPDATE filaments SET color_hex = (
+                SELECT hex_code FROM custom_colors
+                WHERE custom_colors.name = filaments.color
+                AND custom_colors.user_id = filaments.user_id
+              ) WHERE color_hex IS NULL`, (err) => {
+                if (err) {
+                  console.error('Error auto-populating color_hex:', err.message);
+                } else {
+                  console.log('color_hex auto-populated from custom_colors');
+                }
+              });
+            }
+          });
+        }
+
         // Add user_id column if it doesn't exist
         addUserIdColumn('filaments');
       });
@@ -698,49 +722,77 @@ app.get('/api/filaments/:id', authenticateToken, (req, res) => {
 
 // Add new filament (associated with current user)
 app.post('/api/filaments', authenticateToken, (req, res) => {
-  const { brand, type, color, spool_type, weight_remaining, purchase_date, notes } = req.body;
+  const { brand, type, color, spool_type, weight_remaining, purchase_date, notes, color_hex } = req.body;
 
   if (!brand || !type || !color || !spool_type) {
     return res.status(400).json({ error: 'Brand, type, color, and spool_type are required' });
   }
 
-  const query = `
-    INSERT INTO filaments (brand, type, color, spool_type, weight_remaining, purchase_date, notes, user_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `;
+  const insertFilament = (hexValue) => {
+    const query = `
+      INSERT INTO filaments (brand, type, color, spool_type, weight_remaining, purchase_date, notes, user_id, color_hex)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
 
-  db.run(query, [brand, type, color, spool_type, weight_remaining || 1000, purchase_date, notes, req.user.userId], function (err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    res.json({ id: this.lastID, message: 'Filament added successfully' });
-  });
+    db.run(query, [brand, type, color, spool_type, weight_remaining || 1000, purchase_date, notes, req.user.userId, hexValue], function (err) {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      res.json({ id: this.lastID, message: 'Filament added successfully' });
+    });
+  };
+
+  if (color_hex) {
+    insertFilament(color_hex);
+  } else {
+    // Auto-fill color_hex from custom_colors if color name matches
+    db.get('SELECT hex_code FROM custom_colors WHERE name = ? AND user_id = ?', [color, req.user.userId], (err, row) => {
+      if (err) {
+        console.error('Error looking up custom color:', err.message);
+      }
+      insertFilament(row ? row.hex_code : null);
+    });
+  }
 });
 
 // Update filament (user's own only)
 app.put('/api/filaments/:id', authenticateToken, (req, res) => {
   const { id } = req.params;
-  const { brand, type, color, spool_type, weight_remaining, purchase_date, notes } = req.body;
+  const { brand, type, color, spool_type, weight_remaining, purchase_date, notes, color_hex } = req.body;
 
-  const query = `
-    UPDATE filaments 
-    SET brand = ?, type = ?, color = ?, spool_type = ?, weight_remaining = ?, 
-        purchase_date = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
-    WHERE id = ? AND user_id = ?
-  `;
+  const updateFilament = (hexValue) => {
+    const query = `
+      UPDATE filaments
+      SET brand = ?, type = ?, color = ?, spool_type = ?, weight_remaining = ?,
+          purchase_date = ?, notes = ?, color_hex = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ?
+    `;
 
-  db.run(query, [brand, type, color, spool_type, weight_remaining, purchase_date, notes, id, req.user.userId], function (err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    if (this.changes === 0) {
-      res.status(404).json({ error: 'Filament not found' });
-      return;
-    }
-    res.json({ message: 'Filament updated successfully' });
-  });
+    db.run(query, [brand, type, color, spool_type, weight_remaining, purchase_date, notes, hexValue, id, req.user.userId], function (err) {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      if (this.changes === 0) {
+        res.status(404).json({ error: 'Filament not found' });
+        return;
+      }
+      res.json({ message: 'Filament updated successfully' });
+    });
+  };
+
+  if (color_hex) {
+    updateFilament(color_hex);
+  } else {
+    // Auto-fill color_hex from custom_colors if color name matches
+    db.get('SELECT hex_code FROM custom_colors WHERE name = ? AND user_id = ?', [color, req.user.userId], (err, row) => {
+      if (err) {
+        console.error('Error looking up custom color:', err.message);
+      }
+      updateFilament(row ? row.hex_code : null);
+    });
+  }
 });
 
 // Use filament (user's own only)
@@ -1116,7 +1168,20 @@ app.get('/', (req, res) => {
 
 // ==================== API Key Protected Routes (Machine-to-Machine) ====================
 
-// Deduct filament by brand + type + color (case-insensitive match)
+// Convert Bambu RGBA hex (e.g. "000000FF") or plain hex to normalized "#rrggbb" format
+function normalizeHexColor(color) {
+  const cleaned = color.replace(/^#/, '');
+  if (/^[0-9a-fA-F]{8}$/.test(cleaned)) {
+    // RGBA format — strip alpha suffix
+    return '#' + cleaned.substring(0, 6).toLowerCase();
+  }
+  if (/^[0-9a-fA-F]{6}$/.test(cleaned)) {
+    return '#' + cleaned.toLowerCase();
+  }
+  return null; // Not a hex code
+}
+
+// Deduct filament by brand + type + color (multi-strategy matching)
 app.post('/api/filaments/deduct', authenticateApiKey, (req, res) => {
   const { brand, type, color, grams_used } = req.body;
 
@@ -1128,8 +1193,10 @@ app.post('/api/filaments/deduct', authenticateApiKey, (req, res) => {
     return res.status(400).json({ error: 'grams_used must be a positive number' });
   }
 
-  // Find matching filaments across all users, pick the one with most weight remaining
-  const query = `
+  const colorHex = normalizeHexColor(color);
+
+  // Strategy 1: Exact match on brand + type + color name
+  const exactQuery = `
     SELECT * FROM filaments
     WHERE LOWER(brand) = LOWER(?) AND LOWER(type) = LOWER(?) AND LOWER(color) = LOWER(?)
       AND is_archived = 0
@@ -1137,18 +1204,34 @@ app.post('/api/filaments/deduct', authenticateApiKey, (req, res) => {
     LIMIT 1
   `;
 
-  db.get(query, [brand, type, color], (err, filament) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
+  // Strategy 2: brand + type + color_hex
+  const hexQuery = `
+    SELECT * FROM filaments
+    WHERE LOWER(brand) = LOWER(?) AND LOWER(type) = LOWER(?) AND LOWER(color_hex) = LOWER(?)
+      AND is_archived = 0
+    ORDER BY weight_remaining DESC
+    LIMIT 1
+  `;
 
-    if (!filament) {
-      return res.status(404).json({
-        error: 'No matching filament found',
-        searched: { brand, type, color }
-      });
-    }
+  // Strategy 3: Fuzzy brand — just type + color name
+  const fuzzyColorQuery = `
+    SELECT * FROM filaments
+    WHERE LOWER(type) = LOWER(?) AND LOWER(color) = LOWER(?)
+      AND is_archived = 0
+    ORDER BY weight_remaining DESC
+    LIMIT 1
+  `;
 
+  // Strategy 4: Fuzzy brand — just type + color_hex
+  const fuzzyHexQuery = `
+    SELECT * FROM filaments
+    WHERE LOWER(type) = LOWER(?) AND LOWER(color_hex) = LOWER(?)
+      AND is_archived = 0
+    ORDER BY weight_remaining DESC
+    LIMIT 1
+  `;
+
+  const deductFromFilament = (filament, matchedBy) => {
     let newWeight = filament.weight_remaining - grams_used;
     if (newWeight < 0) newWeight = 0;
     const isArchived = newWeight === 0 ? 1 : 0;
@@ -1164,20 +1247,60 @@ app.post('/api/filaments/deduct', authenticateApiKey, (req, res) => {
         return res.status(500).json({ error: err.message });
       }
 
-      console.log(`[API-KEY] Deducted ${grams_used}g from filament #${filament.id} (${filament.brand} ${filament.type} ${filament.color}): ${filament.weight_remaining}g -> ${newWeight}g${isArchived ? ' [ARCHIVED]' : ''}`);
+      console.log(`[API-KEY] Deducted ${grams_used}g from filament #${filament.id} (${filament.brand} ${filament.type} ${filament.color}) [matched_by: ${matchedBy}]: ${filament.weight_remaining}g -> ${newWeight}g${isArchived ? ' [ARCHIVED]' : ''}`);
 
       res.json({
-        message: 'Filament deducted successfully',
+        message: `Deducted ${grams_used}g from ${filament.type} ${filament.color}`,
         filament: {
           id: filament.id,
           brand: filament.brand,
           type: filament.type,
           color: filament.color,
-          previous_weight: filament.weight_remaining,
-          grams_deducted: grams_used,
-          weight_remaining: newWeight,
-          archived: !!isArchived
-        }
+          weight_remaining: newWeight
+        },
+        matched_by: matchedBy
+      });
+    });
+  };
+
+  // Try strategies in order
+  db.get(exactQuery, [brand, type, color], (err, filament) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (filament) return deductFromFilament(filament, 'color_name');
+
+    // Strategy 2: hex match (only if color looks like a hex code)
+    if (!colorHex) {
+      // Color is not a hex code, skip to fuzzy brand match on color name
+      return db.get(fuzzyColorQuery, [type, color], (err, filament) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (filament) return deductFromFilament(filament, 'fuzzy_brand_color_name');
+
+        return res.status(404).json({
+          error: 'No matching filament found',
+          searched: { brand, type, color }
+        });
+      });
+    }
+
+    db.get(hexQuery, [brand, type, colorHex], (err, filament) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (filament) return deductFromFilament(filament, 'color_hex');
+
+      // Strategy 3: fuzzy brand + color name
+      db.get(fuzzyColorQuery, [type, color], (err, filament) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (filament) return deductFromFilament(filament, 'fuzzy_brand_color_name');
+
+        // Strategy 4: fuzzy brand + color_hex
+        db.get(fuzzyHexQuery, [type, colorHex], (err, filament) => {
+          if (err) return res.status(500).json({ error: err.message });
+          if (filament) return deductFromFilament(filament, 'fuzzy_brand_color_hex');
+
+          return res.status(404).json({
+            error: 'No matching filament found',
+            searched: { brand, type, color, color_hex: colorHex }
+          });
+        });
       });
     });
   });
