@@ -199,6 +199,23 @@ function handleMessage(topic, messageBuffer) {
     }
   }
 
+  // Late AMS capture: if print is running but we missed the tray snapshot, grab it now
+  if (printState.printRunning && Object.keys(printState.traysAtStart).length === 0 && print.ams) {
+    const snapshot = snapshotTrays(print.ams);
+    if (Object.keys(snapshot).length > 0) {
+      printState.traysAtStart = snapshot;
+      log('info', 'Late AMS tray snapshot captured:', snapshot);
+
+      // Also record active tray if available
+      if (print.ams.tray_now !== undefined) {
+        const trayNow = parseInt(print.ams.tray_now, 10);
+        if (trayNow >= 0 && trayNow <= 3) {
+          printState.activeTraysDuringPrint.add(trayNow);
+        }
+      }
+    }
+  }
+
   // State transitions
   if (gcodeState && gcodeState !== printState.gcodeState) {
     log('info', `Print state: ${printState.gcodeState} -> ${gcodeState}`);
