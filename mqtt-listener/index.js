@@ -28,79 +28,13 @@ const BAMBU_API_BASE = 'https://api.bambulab.com';
 // ==================== Bambu → Inventory Mapping ====================
 // Bambu reports brand as the filament sub-type (e.g., "PLA Matte", "PLA Basic")
 // Your inventory uses "Bambu Lab" as brand and the sub-type as the type field
-// This mapping converts Bambu's naming to your inventory's naming
 
-// Map Bambu "tray_sub_brands" + "tray_type" → inventory brand + type
 function mapFilamentType(bambuBrand, bambuType) {
-  // Bambu brand field contains sub-brand like "PLA Matte", "PLA Basic", "PETG HF"
-  // Your inventory: brand is always "Bambu Lab", type is the sub-brand or filament type
-
-  const brand = 'Bambu Lab'; // All Bambu filaments → "Bambu Lab" in your inventory
-
-  // If bambuBrand contains meaningful sub-type info, use it as the type
-  // e.g., "PLA Matte" → type "PLA Matte", "PLA Basic" → type "PLA", "PETG HF" → type "PETG"
+  const brand = 'Bambu Lab';
   let type = bambuBrand || bambuType || 'Unknown';
-
-  // Normalize: "PLA Basic" → "PLA" (your inventory uses "PLA" for basic PLA)
+  // "PLA Basic" → "PLA" in inventory
   if (type === 'PLA Basic') type = 'PLA';
-
   return { brand, type };
-}
-
-// Bambu hex color codes → your inventory color names
-const BAMBU_COLOR_MAP = {
-  // PLA Matte colors
-  '000000FF': 'Charcoal',
-  'FFFFFFFF': 'Ivory White',
-  '9B9EA0FF': 'Ash Gray',
-  'F5A623FF': 'Mandarin Orange',
-  'D4A373FF': 'Desert Tan',
-  'C74C3CFF': 'Scarlet Red',
-  'E74C3CFF': 'Scarlet Red',
-  '2E86C1FF': 'Marine Blue',
-  '27AE60FF': 'Grass Green',
-  'F1C40FFF': 'Lemon Yellow',
-  '8E44ADFF': 'Lilac Purple',
-  'FFB7C5FF': 'Sakura Pink',
-  'C0392BFF': 'Terracotta',
-  '7FB069FF': 'Apple Green',
-  // PLA Basic colors
-  '00FF00FF': 'Green',
-  'FF0000FF': 'Red',
-  '0000FFFF': 'Blue',
-  'FFFF00FF': 'Yellow',
-  '808080FF': 'Gray',
-  'FFA500FF': 'Orange',
-  '800080FF': 'Purple',
-  '00FFFFFF': 'Cyan',
-  'A52A2AFF': 'Brown',
-  'F5F5DCFF': 'Beige',
-};
-
-function mapColor(hexColor, type) {
-  if (!hexColor || hexColor === 'Unknown') return 'Unknown';
-
-  // Direct lookup
-  const upperHex = hexColor.toUpperCase();
-  if (BAMBU_COLOR_MAP[upperHex]) {
-    return BAMBU_COLOR_MAP[upperHex];
-  }
-
-  // For white: different types use different names
-  if (upperHex === 'FFFFFFFF') {
-    if (type === 'PLA Matte') return 'Ivory White';
-    if (type === 'PLA') return 'White';
-    return 'White';
-  }
-
-  // For black
-  if (upperHex === '000000FF') {
-    if (type === 'PLA Matte') return 'Charcoal';
-    return 'Black';
-  }
-
-  // Fallback: return hex as-is (won't match but will log clearly)
-  return hexColor;
 }
 
 // ==================== Print State Tracker ====================
@@ -248,11 +182,10 @@ async function handlePrintEnd(finalState) {
           log('info', `Failed print — scaling weight by ${progress}%: ${gramsUsed}g`);
         }
         const { brand, type } = mapFilamentType(tray.brand, tray.type);
-        const color = mapColor(tray.color, type);
         await deductFilament({
           brand,
           type,
-          color,
+          color: tray.color, // Send hex code — tracker handles matching
           grams_used: gramsUsed,
           trayIndex: trayIdx,
         });
@@ -284,18 +217,17 @@ async function handlePrintEnd(finalState) {
     const trayIdx = (mapping.ams || 1) - 1;
     const tray = printState.traysAtStart[trayIdx];
 
-    // Map Bambu naming → your inventory naming
+    // Map Bambu naming → inventory naming
     const bambuBrand = tray ? tray.brand : mapping.filamentType;
     const bambuType = mapping.filamentType || (tray ? tray.type : 'Unknown');
     const bambuColor = mapping.sourceColor || (tray ? tray.color : 'Unknown');
 
     const { brand, type } = mapFilamentType(bambuBrand, bambuType);
-    const color = mapColor(bambuColor, type);
 
     const usage = {
       brand,
       type,
-      color,
+      color: bambuColor, // Send hex code — tracker handles hex→name matching
       grams_used: gramsUsed,
       trayIndex: trayIdx,
     };
