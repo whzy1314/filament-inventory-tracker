@@ -5,9 +5,15 @@ const http = require('http');
 // ==================== Configuration ====================
 const config = {
   printer: {
-    ip: process.env.PRINTER_IP || '192.168.20.70',
+    ip: process.env.PRINTER_IP || '192.168.10.115',
     serial: process.env.PRINTER_SERIAL || '01P09C532200119',
-    accessCode: process.env.PRINTER_ACCESS_CODE || '27410960',
+    accessCode: process.env.PRINTER_ACCESS_CODE || '',
+  },
+  cloud: {
+    enabled: process.env.CLOUD_MQTT_ENABLED === 'true',
+    server: process.env.CLOUD_MQTT_SERVER || 'us.mqtt.bambulab.com',
+    uid: process.env.CLOUD_MQTT_UID || '',
+    token: process.env.CLOUD_MQTT_TOKEN || '',
   },
   tracker: {
     apiUrl: process.env.TRACKER_API_URL || 'https://filament-tracker.yzcloud.xyz',
@@ -280,13 +286,23 @@ function handleMessage(topic, messageBuffer) {
 
 // ==================== MQTT Connection ====================
 function connectMqtt() {
-  const brokerUrl = `mqtts://${config.printer.ip}:8883`;
+  let brokerUrl, mqttUsername, mqttPassword;
 
-  log('info', `Connecting to MQTT broker at ${brokerUrl}`);
+  if (config.cloud.enabled && config.cloud.uid && config.cloud.token) {
+    brokerUrl = `mqtts://${config.cloud.server}:8883`;
+    mqttUsername = `u_${config.cloud.uid}`;
+    mqttPassword = config.cloud.token;
+    log('info', `Connecting to CLOUD MQTT broker at ${brokerUrl} (user: ${mqttUsername})`);
+  } else {
+    brokerUrl = `mqtts://${config.printer.ip}:8883`;
+    mqttUsername = 'bblp';
+    mqttPassword = config.printer.accessCode;
+    log('info', `Connecting to LOCAL MQTT broker at ${brokerUrl}`);
+  }
 
   const client = mqtt.connect(brokerUrl, {
-    username: 'bblp',
-    password: config.printer.accessCode,
+    username: mqttUsername,
+    password: mqttPassword,
     rejectUnauthorized: false,
     reconnectPeriod: 5000,
     connectTimeout: 30000,
@@ -364,7 +380,8 @@ function startHealthServer() {
 // ==================== Main ====================
 function main() {
   log('info', '=== Bambu Lab P1S MQTT Listener Starting ===');
-  log('info', `Printer: ${config.printer.ip} (serial: ${config.printer.serial})`);
+  log('info', `Printer serial: ${config.printer.serial}`);
+  log('info', `MQTT mode: ${config.cloud.enabled ? 'CLOUD' : 'LOCAL'} (${config.cloud.enabled ? config.cloud.server : config.printer.ip})`);
   log('info', `Tracker API: ${config.tracker.apiUrl}`);
   log('info', `API Key configured: ${config.tracker.apiKey ? 'yes' : 'NO — deductions will fail!'}`);
 
