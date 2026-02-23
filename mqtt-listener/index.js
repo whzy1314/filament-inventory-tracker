@@ -212,22 +212,38 @@ async function handlePrintEnd(finalState) {
       continue;
     }
 
-    // Get filament info from AMS tray data (MQTT) for brand matching
-    // amsMapping.ams is 1-indexed tray number, our traysAtStart is 0-indexed
-    const trayIdx = (mapping.ams || 1) - 1;
-    const tray = printState.traysAtStart[trayIdx];
+    // Determine which tray was actually used
+    // For single-filament prints: prefer MQTT's active tray data (more accurate
+    // when user changes filament after slicing, e.g., cancel white → reprint black)
+    // For multi-filament prints: use cloud mapping per tray
+    const cloudTrayIdx = (mapping.ams || 1) - 1;
+    const isMultiFilament = amsMapping.length > 1;
 
-    // Map Bambu naming → inventory naming
+    let trayIdx, tray, bambuColor;
+    if (!isMultiFilament && printState.activeTraysDuringPrint.size === 1) {
+      // Single filament: trust MQTT's active tray (handles reprints with different filament)
+      trayIdx = [...printState.activeTraysDuringPrint][0];
+      tray = printState.traysAtStart[trayIdx];
+      bambuColor = tray ? tray.color : mapping.sourceColor;
+      if (trayIdx !== cloudTrayIdx) {
+        log('info', `Using MQTT active tray ${trayIdx} (A${trayIdx + 1}) instead of cloud tray ${cloudTrayIdx} (A${cloudTrayIdx + 1})`);
+      }
+    } else {
+      // Multi-filament or ambiguous: use cloud mapping
+      trayIdx = cloudTrayIdx;
+      tray = printState.traysAtStart[trayIdx];
+      bambuColor = mapping.sourceColor || (tray ? tray.color : 'Unknown');
+    }
+
     const bambuBrand = tray ? tray.brand : mapping.filamentType;
     const bambuType = mapping.filamentType || (tray ? tray.type : 'Unknown');
-    const bambuColor = mapping.sourceColor || (tray ? tray.color : 'Unknown');
 
     const { brand, type } = mapFilamentType(bambuBrand, bambuType);
 
     const usage = {
       brand,
       type,
-      color: bambuColor, // Send hex code — tracker handles hex→name matching
+      color: bambuColor,
       grams_used: gramsUsed,
       trayIndex: trayIdx,
     };
