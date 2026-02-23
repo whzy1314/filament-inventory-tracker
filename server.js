@@ -1195,8 +1195,18 @@ app.post('/api/filaments/deduct', authenticateApiKey, (req, res) => {
 
   const colorHex = normalizeHexColor(color);
 
+  // Spool selection: pick the spool with the LEAST remaining that still has enough.
+  // If no spool has enough, pick the one with the most remaining as a fallback.
+
   // Strategy 1: Exact match on brand + type + color name
   const exactQuery = `
+    SELECT * FROM filaments
+    WHERE LOWER(brand) = LOWER(?) AND LOWER(type) = LOWER(?) AND LOWER(color) = LOWER(?)
+      AND is_archived = 0 AND weight_remaining >= ?
+    ORDER BY weight_remaining ASC
+    LIMIT 1
+  `;
+  const exactFallbackQuery = `
     SELECT * FROM filaments
     WHERE LOWER(brand) = LOWER(?) AND LOWER(type) = LOWER(?) AND LOWER(color) = LOWER(?)
       AND is_archived = 0
@@ -1208,6 +1218,13 @@ app.post('/api/filaments/deduct', authenticateApiKey, (req, res) => {
   const hexQuery = `
     SELECT * FROM filaments
     WHERE LOWER(brand) = LOWER(?) AND LOWER(type) = LOWER(?) AND LOWER(color_hex) = LOWER(?)
+      AND is_archived = 0 AND weight_remaining >= ?
+    ORDER BY weight_remaining ASC
+    LIMIT 1
+  `;
+  const hexFallbackQuery = `
+    SELECT * FROM filaments
+    WHERE LOWER(brand) = LOWER(?) AND LOWER(type) = LOWER(?) AND LOWER(color_hex) = LOWER(?)
       AND is_archived = 0
     ORDER BY weight_remaining DESC
     LIMIT 1
@@ -1217,6 +1234,13 @@ app.post('/api/filaments/deduct', authenticateApiKey, (req, res) => {
   const fuzzyColorQuery = `
     SELECT * FROM filaments
     WHERE LOWER(type) = LOWER(?) AND LOWER(color) = LOWER(?)
+      AND is_archived = 0 AND weight_remaining >= ?
+    ORDER BY weight_remaining ASC
+    LIMIT 1
+  `;
+  const fuzzyColorFallbackQuery = `
+    SELECT * FROM filaments
+    WHERE LOWER(type) = LOWER(?) AND LOWER(color) = LOWER(?)
       AND is_archived = 0
     ORDER BY weight_remaining DESC
     LIMIT 1
@@ -1224,6 +1248,13 @@ app.post('/api/filaments/deduct', authenticateApiKey, (req, res) => {
 
   // Strategy 4: Fuzzy brand — just type + color_hex
   const fuzzyHexQuery = `
+    SELECT * FROM filaments
+    WHERE LOWER(type) = LOWER(?) AND LOWER(color_hex) = LOWER(?)
+      AND is_archived = 0 AND weight_remaining >= ?
+    ORDER BY weight_remaining ASC
+    LIMIT 1
+  `;
+  const fuzzyHexFallbackQuery = `
     SELECT * FROM filaments
     WHERE LOWER(type) = LOWER(?) AND LOWER(color_hex) = LOWER(?)
       AND is_archived = 0
@@ -1263,47 +1294,66 @@ app.post('/api/filaments/deduct', authenticateApiKey, (req, res) => {
     });
   };
 
-  // Try strategies in order
-  db.get(exactQuery, [brand, type, color], (err, filament) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (filament) return deductFromFilament(filament, 'color_name');
-
-    // Strategy 2: hex match (only if color looks like a hex code)
-    if (!colorHex) {
-      // Color is not a hex code, skip to fuzzy brand match on color name
-      return db.get(fuzzyColorQuery, [type, color], (err, filament) => {
+  // Helper: try query with enough remaining, then fallback to any spool
+  function tryQuery(query, fallbackQuery, params, fallbackParams, matchedBy, next) {
+    db.get(query, params, (err, filament) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (filament) return deductFromFilament(filament, matchedBy);
+      // Fallback: no spool has enough, pick the fullest one anyway
+      db.get(fallbackQuery, fallbackParams, (err, filament) => {
         if (err) return res.status(500).json({ error: err.message });
-        if (filament) return deductFromFilament(filament, 'fuzzy_brand_color_name');
-
+        if (filament) return deductFromFilament(filament, matchedBy + '_insufficient');
+        // No match at all, try next strategy
+        if (next) return next();
         return res.status(404).json({
           error: 'No matching filament found',
-          searched: { brand, type, color }
-        });
-      });
-    }
-
-    db.get(hexQuery, [brand, type, colorHex], (err, filament) => {
-      if (err) return res.status(500).json({ error: err.message });
-      if (filament) return deductFromFilament(filament, 'color_hex');
-
-      // Strategy 3: fuzzy brand + color name
-      db.get(fuzzyColorQuery, [type, color], (err, filament) => {
-        if (err) return res.status(500).json({ error: err.message });
-        if (filament) return deductFromFilament(filament, 'fuzzy_brand_color_name');
-
-        // Strategy 4: fuzzy brand + color_hex
-        db.get(fuzzyHexQuery, [type, colorHex], (err, filament) => {
-          if (err) return res.status(500).json({ error: err.message });
-          if (filament) return deductFromFilament(filament, 'fuzzy_brand_color_hex');
-
-          return res.status(404).json({
-            error: 'No matching filament found',
-            searched: { brand, type, color, color_hex: colorHex }
-          });
+          searched: { brand, type, color, color_hex: colorHex }
         });
       });
     });
-  });
+  }
+
+  // Try strategies in order
+  // Strategy 1: exact brand + type + color name
+  tryQuery(
+    exactQuery, exactFallbackQuery,
+    [brand, type, color, grams_used], [brand, type, color],
+    'color_name',
+    () => {
+      if (!colorHex) {
+        // No hex — try fuzzy color name
+        return tryQuery(
+          fuzzyColorQuery, fuzzyColorFallbackQuery,
+          [type, color, grams_used], [type, color],
+          'fuzzy_brand_color_name',
+          null
+        );
+      }
+      // Strategy 2: brand + type + color_hex
+      tryQuery(
+        hexQuery, hexFallbackQuery,
+        [brand, type, colorHex, grams_used], [brand, type, colorHex],
+        'color_hex',
+        () => {
+          // Strategy 3: fuzzy brand + color name
+          tryQuery(
+            fuzzyColorQuery, fuzzyColorFallbackQuery,
+            [type, color, grams_used], [type, color],
+            'fuzzy_brand_color_name',
+            () => {
+              // Strategy 4: fuzzy brand + color_hex
+              tryQuery(
+                fuzzyHexQuery, fuzzyHexFallbackQuery,
+                [type, colorHex, grams_used], [type, colorHex],
+                'fuzzy_brand_color_hex',
+                null
+              );
+            }
+          );
+        }
+      );
+    }
+  );
 });
 
 // Deduct filament by ID
