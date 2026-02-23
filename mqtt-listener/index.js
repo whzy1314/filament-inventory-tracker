@@ -212,27 +212,23 @@ async function handlePrintEnd(finalState) {
       continue;
     }
 
-    // Determine which tray was actually used
-    // For single-filament prints: prefer MQTT's active tray data (more accurate
-    // when user changes filament after slicing, e.g., cancel white → reprint black)
-    // For multi-filament prints: use cloud mapping per tray
+    // Always use MQTT tray data for filament identification (handles filament
+    // swaps via Handy app/printer that don't update cloud task metadata).
+    // Cloud API provides the weight per tray (accurate), MQTT provides what's
+    // actually in each tray (accurate even after swaps).
     const cloudTrayIdx = (mapping.ams || 1) - 1;
-    const isMultiFilament = amsMapping.length > 1;
+    const trayIdx = cloudTrayIdx;
+    const tray = printState.traysAtStart[trayIdx];
 
-    let trayIdx, tray, bambuColor;
-    if (!isMultiFilament && printState.activeTraysDuringPrint.size === 1) {
-      // Single filament: trust MQTT's active tray (handles reprints with different filament)
-      trayIdx = [...printState.activeTraysDuringPrint][0];
-      tray = printState.traysAtStart[trayIdx];
-      bambuColor = tray ? tray.color : mapping.sourceColor;
-      if (trayIdx !== cloudTrayIdx) {
-        log('info', `Using MQTT active tray ${trayIdx} (A${trayIdx + 1}) instead of cloud tray ${cloudTrayIdx} (A${cloudTrayIdx + 1})`);
+    // Use MQTT tray color if available, fall back to cloud
+    let bambuColor;
+    if (tray && tray.color && tray.color !== 'Unknown') {
+      bambuColor = tray.color;
+      if (mapping.sourceColor && mapping.sourceColor !== tray.color) {
+        log('info', `Tray ${trayIdx} (A${trayIdx + 1}): using MQTT color ${tray.color} instead of cloud color ${mapping.sourceColor}`);
       }
     } else {
-      // Multi-filament or ambiguous: use cloud mapping
-      trayIdx = cloudTrayIdx;
-      tray = printState.traysAtStart[trayIdx];
-      bambuColor = mapping.sourceColor || (tray ? tray.color : 'Unknown');
+      bambuColor = mapping.sourceColor || 'Unknown';
     }
 
     const bambuBrand = tray ? tray.brand : mapping.filamentType;
