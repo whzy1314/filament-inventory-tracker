@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: bambu-mqtt-listener
-        image: ghcr.io/yzeng1314/bambu-mqtt-listener:latest
+        image: ghcr.io/whzy1314/bambu-mqtt-listener:latest
         ports:
         - containerPort: 3001
         envFrom:
