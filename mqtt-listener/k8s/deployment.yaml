@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bambu-mqtt-listener
+  labels:
+    app: bambu-mqtt-listener
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bambu-mqtt-listener
+  template:
+    metadata:
+      labels:
+        app: bambu-mqtt-listener
+    spec:
+      containers:
+      - name: bambu-mqtt-listener
+        image: ghcr.io/yzeng1314/bambu-mqtt-listener:latest
+        ports:
+        - containerPort: 3001
+        envFrom:
+        - configMapRef:
+            name: bambu-mqtt-config
+        - secretRef:
+            name: bambu-mqtt-secret
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 15
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bambu-mqtt-config
+data:
+  PRINTER_IP: "192.168.20.70"
+  PRINTER_SERIAL: "01P09C532200119"
+  TRACKER_API_URL: "https://filament-tracker.yzcloud.xyz"
+  HEALTH_PORT: "3001"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: bambu-mqtt-secret
+type: Opaque
+stringData:
+  PRINTER_ACCESS_CODE: "CHANGE_ME"
+  TRACKER_API_KEY: "CHANGE_ME"

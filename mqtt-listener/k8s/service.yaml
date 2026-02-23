@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: bambu-mqtt-listener-service
+  labels:
+    app: bambu-mqtt-listener
+spec:
+  selector:
+    app: bambu-mqtt-listener
+  ports:
+  - protocol: TCP
+    port: 3001
+    targetPort: 3001
+  type: ClusterIP

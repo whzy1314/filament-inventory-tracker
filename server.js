@@ -12,6 +12,7 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'filament-tracker-secret-key-change-in-production';
 const JWT_EXPIRES_IN = '7d';
 const JWT_REMEMBER_EXPIRES_IN = '30d';
+const API_KEY = process.env.API_KEY;
 
 // Middleware
 app.use(cors());
@@ -234,6 +235,24 @@ const optionalAuth = (req, res, next) => {
       res.clearCookie('auth_token');
     }
   }
+  next();
+};
+
+// API Key Authentication Middleware (for machine-to-machine calls)
+const authenticateApiKey = (req, res, next) => {
+  if (!API_KEY) {
+    return res.status(500).json({ error: 'API key not configured on server' });
+  }
+
+  const providedKey = req.headers['x-api-key'];
+  if (!providedKey) {
+    return res.status(401).json({ error: 'API key required (X-API-Key header)' });
+  }
+
+  if (providedKey !== API_KEY) {
+    return res.status(403).json({ error: 'Invalid API key' });
+  }
+
   next();
 };
 
@@ -1093,6 +1112,130 @@ app.get('/', (req, res) => {
     res.clearCookie('auth_token');
     return res.redirect('/login');
   }
+});
+
+// ==================== API Key Protected Routes (Machine-to-Machine) ====================
+
+// Deduct filament by brand + type + color (case-insensitive match)
+app.post('/api/filaments/deduct', authenticateApiKey, (req, res) => {
+  const { brand, type, color, grams_used } = req.body;
+
+  if (!brand || !type || !color || !grams_used) {
+    return res.status(400).json({ error: 'brand, type, color, and grams_used are required' });
+  }
+
+  if (typeof grams_used !== 'number' || grams_used <= 0) {
+    return res.status(400).json({ error: 'grams_used must be a positive number' });
+  }
+
+  // Find matching filaments across all users, pick the one with most weight remaining
+  const query = `
+    SELECT * FROM filaments
+    WHERE LOWER(brand) = LOWER(?) AND LOWER(type) = LOWER(?) AND LOWER(color) = LOWER(?)
+      AND is_archived = 0
+    ORDER BY weight_remaining DESC
+    LIMIT 1
+  `;
+
+  db.get(query, [brand, type, color], (err, filament) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+
+    if (!filament) {
+      return res.status(404).json({
+        error: 'No matching filament found',
+        searched: { brand, type, color }
+      });
+    }
+
+    let newWeight = filament.weight_remaining - grams_used;
+    if (newWeight < 0) newWeight = 0;
+    const isArchived = newWeight === 0 ? 1 : 0;
+
+    const updateQuery = `
+      UPDATE filaments
+      SET weight_remaining = ?, is_archived = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `;
+
+    db.run(updateQuery, [newWeight, isArchived, filament.id], function (err) {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      console.log(`[API-KEY] Deducted ${grams_used}g from filament #${filament.id} (${filament.brand} ${filament.type} ${filament.color}): ${filament.weight_remaining}g -> ${newWeight}g${isArchived ? ' [ARCHIVED]' : ''}`);
+
+      res.json({
+        message: 'Filament deducted successfully',
+        filament: {
+          id: filament.id,
+          brand: filament.brand,
+          type: filament.type,
+          color: filament.color,
+          previous_weight: filament.weight_remaining,
+          grams_deducted: grams_used,
+          weight_remaining: newWeight,
+          archived: !!isArchived
+        }
+      });
+    });
+  });
+});
+
+// Deduct filament by ID
+app.post('/api/filaments/deduct-by-id', authenticateApiKey, (req, res) => {
+  const { filament_id, grams_used } = req.body;
+
+  if (!filament_id || !grams_used) {
+    return res.status(400).json({ error: 'filament_id and grams_used are required' });
+  }
+
+  if (typeof grams_used !== 'number' || grams_used <= 0) {
+    return res.status(400).json({ error: 'grams_used must be a positive number' });
+  }
+
+  db.get('SELECT * FROM filaments WHERE id = ? AND is_archived = 0', [filament_id], (err, filament) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+
+    if (!filament) {
+      return res.status(404).json({ error: 'Filament not found or already archived' });
+    }
+
+    let newWeight = filament.weight_remaining - grams_used;
+    if (newWeight < 0) newWeight = 0;
+    const isArchived = newWeight === 0 ? 1 : 0;
+
+    const updateQuery = `
+      UPDATE filaments
+      SET weight_remaining = ?, is_archived = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `;
+
+    db.run(updateQuery, [newWeight, isArchived, filament.id], function (err) {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      console.log(`[API-KEY] Deducted ${grams_used}g from filament #${filament.id} by ID: ${filament.weight_remaining}g -> ${newWeight}g${isArchived ? ' [ARCHIVED]' : ''}`);
+
+      res.json({
+        message: 'Filament deducted successfully',
+        filament: {
+          id: filament.id,
+          brand: filament.brand,
+          type: filament.type,
+          color: filament.color,
+          previous_weight: filament.weight_remaining,
+          grams_deducted: grams_used,
+          weight_remaining: newWeight,
+          archived: !!isArchived
+        }
+      });
+    });
+  });
 });
 
 // Health check endpoint for K8s

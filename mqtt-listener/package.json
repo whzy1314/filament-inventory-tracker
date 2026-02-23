@@ -1,0 +1,13 @@
+{
+  "name": "bambu-mqtt-listener",
+  "version": "1.0.0",
+  "description": "Bambu Lab P1S MQTT listener for filament inventory tracking",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "mqtt": "^5.5.0"
+  }
+}
