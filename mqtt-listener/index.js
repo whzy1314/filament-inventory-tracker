@@ -23,17 +23,18 @@ const config = {
 };
 
 const MQTT_TOPIC = `device/${config.printer.serial}/report`;
+const BAMBU_API_BASE = 'https://api.bambulab.com';
 
 // ==================== Print State Tracker ====================
 const printState = {
   gcodeState: 'IDLE',
   previousGcodeState: 'IDLE',
   printRunning: false,
-  // Track per-tray usage during a print
-  traysAtStart: {},   // { trayIndex: { remain, tray_weight, brand, type, color } }
   activeTraysDuringPrint: new Set(),
   currentTrayIndex: null,
   printStartTime: null,
+  // AMS tray info (for filament identification fallback)
+  traysAtStart: {},
 };
 
 // ==================== Logging ====================
@@ -73,61 +74,37 @@ function snapshotTrays(amsData) {
   return snapshot;
 }
 
-// Map hex color code to a human-readable color name
-function hexToColorName(hex) {
-  if (!hex || hex === 'Unknown') return 'Unknown';
-  // Return the hex code as-is — the tracker can match on it
-  return hex;
-}
-
-// ==================== Filament Usage Calculation ====================
-function calculateUsage(startTrays, endTrays, activeTrays) {
-  const usageList = [];
-
-  for (const trayIdx of activeTrays) {
-    const start = startTrays[trayIdx];
-    const end = endTrays[trayIdx];
-
-    if (!start || !end) {
-      log('warn', `Missing tray data for tray ${trayIdx}, skipping`);
-      continue;
-    }
-
-    let gramsUsed = 0;
-    let method = 'unknown';
-
-    // Method A: Weight delta from AMS RFID data
-    if (start.weight !== null && end.weight !== null && start.weight > end.weight) {
-      gramsUsed = start.weight - end.weight;
-      method = 'weight_delta';
-    }
-    // Method B: Percentage-based estimation (assume standard 1000g spool)
-    else if (start.remain !== null && end.remain !== null && start.remain > end.remain) {
-      const spoolWeight = start.weight || 1000;
-      const percentUsed = start.remain - end.remain;
-      gramsUsed = Math.round((percentUsed / 100) * spoolWeight);
-      method = 'percent_delta';
-    }
-
-    if (gramsUsed > 0) {
-      usageList.push({
-        trayIndex: trayIdx,
-        brand: start.brand,
-        type: start.type,
-        color: hexToColorName(start.color),
-        grams_used: gramsUsed,
-        method,
-      });
-      log('info', `Tray ${trayIdx}: ${gramsUsed}g used (${method}) - ${start.brand} ${start.type} ${start.color}`);
-    } else {
-      log('info', `Tray ${trayIdx}: No measurable usage detected`);
-    }
+// ==================== Bambu Cloud API ====================
+async function fetchLatestTask() {
+  if (!config.cloud.token) {
+    log('warn', 'No cloud token configured — cannot fetch task data from Bambu API');
+    return null;
   }
 
-  return usageList;
+  try {
+    const url = `${BAMBU_API_BASE}/v1/user-service/my/tasks?deviceId=${config.printer.serial}&limit=1`;
+    const response = await axios.get(url, {
+      headers: {
+        'Authorization': `Bearer ${config.cloud.token}`,
+      },
+      timeout: 15000,
+    });
+
+    const tasks = response.data;
+    if (tasks && tasks.hits && tasks.hits.length > 0) {
+      return tasks.hits[0];
+    }
+
+    log('warn', 'No tasks found in Bambu Cloud API');
+    return null;
+  } catch (err) {
+    const status = err.response ? err.response.status : 'network_error';
+    log('error', `Failed to fetch task from Bambu Cloud API (HTTP ${status}):`, err.message);
+    return null;
+  }
 }
 
-// ==================== API Calls ====================
+// ==================== Tracker API Calls ====================
 async function deductFilament(usage) {
   const url = `${config.tracker.apiUrl}/api/filaments/deduct`;
 
@@ -145,35 +122,102 @@ async function deductFilament(usage) {
       timeout: 10000,
     });
 
-    log('info', `Deduction successful for tray ${usage.trayIndex}:`, response.data);
+    log('info', `✅ Deduction successful: ${usage.grams_used}g of ${usage.brand} ${usage.type} (${usage.color})`, response.data);
     return { success: true, data: response.data };
   } catch (err) {
     const status = err.response ? err.response.status : 'network_error';
     const detail = err.response ? err.response.data : err.message;
-    log('error', `Deduction failed for tray ${usage.trayIndex} (HTTP ${status}):`, detail);
+    log('error', `❌ Deduction failed (HTTP ${status}):`, detail);
     return { success: false, error: detail };
   }
 }
 
 // ==================== Print Completion Handler ====================
-async function handlePrintEnd(finalState, amsData) {
-  log('info', `Print ${finalState === 'FINISH' ? 'completed' : 'failed/cancelled'} — processing filament usage`);
+async function handlePrintEnd(finalState) {
+  log('info', `Print ${finalState === 'FINISH' ? 'completed' : 'failed/cancelled'} — fetching usage from Bambu Cloud API`);
 
-  const endTrays = snapshotTrays(amsData);
-  const usageList = calculateUsage(printState.traysAtStart, endTrays, printState.activeTraysDuringPrint);
+  // Wait a few seconds for Bambu cloud to register the completed task
+  await new Promise(resolve => setTimeout(resolve, 5000));
 
-  if (usageList.length === 0) {
-    log('warn', 'No filament usage detected for this print');
+  const task = await fetchLatestTask();
+
+  if (!task) {
+    log('error', 'Could not fetch task data — skipping deduction');
     return;
   }
 
-  log('info', `Processing ${usageList.length} filament deduction(s)`);
+  log('info', `Task: "${task.designTitle || task.title}" — status: ${task.status}, total weight: ${task.weight}g`);
 
-  for (const usage of usageList) {
+  // Status: 2 = completed, 3 = failed
+  if (finalState === 'FAILED' && task.status !== 3) {
+    log('warn', 'Print failed but task status does not match — using slicer estimate scaled by progress');
+  }
+
+  // Parse amsDetailMapping for per-tray filament usage
+  const amsMapping = task.amsDetailMapping;
+  if (!amsMapping || amsMapping.length === 0) {
+    log('warn', 'No AMS detail mapping in task — attempting single deduction with total weight');
+
+    // Fallback: use total weight with tray info from MQTT
+    if (task.weight > 0 && printState.activeTraysDuringPrint.size > 0) {
+      const trayIdx = [...printState.activeTraysDuringPrint][0];
+      const tray = printState.traysAtStart[trayIdx];
+      if (tray) {
+        let gramsUsed = task.weight;
+        // For failed prints, scale by progress
+        if (finalState === 'FAILED' && task.status === 3) {
+          const progress = printState.lastProgress || 0;
+          gramsUsed = Math.round(task.weight * (progress / 100) * 100) / 100;
+          log('info', `Failed print — scaling weight by ${progress}%: ${gramsUsed}g`);
+        }
+        await deductFilament({
+          brand: tray.brand,
+          type: tray.type,
+          color: tray.color,
+          grams_used: gramsUsed,
+          trayIndex: trayIdx,
+        });
+      }
+    }
+    return;
+  }
+
+  // Process each filament used in the print (supports multi-color)
+  log('info', `Processing ${amsMapping.length} filament(s) from slicer data`);
+
+  for (const mapping of amsMapping) {
+    let gramsUsed = mapping.weight;
+
+    // For failed prints, scale by last known progress
+    if (finalState === 'FAILED') {
+      const progress = printState.lastProgress || 0;
+      gramsUsed = Math.round(mapping.weight * (progress / 100) * 100) / 100;
+      log('info', `Failed print — scaling ${mapping.filamentType} weight by ${progress}%: ${gramsUsed}g`);
+    }
+
+    if (gramsUsed <= 0) {
+      log('info', `Skipping ${mapping.filamentType} — 0g used`);
+      continue;
+    }
+
+    // Get filament info from AMS tray data (MQTT) for brand matching
+    // amsMapping.ams is 1-indexed tray number, our traysAtStart is 0-indexed
+    const trayIdx = (mapping.ams || 1) - 1;
+    const tray = printState.traysAtStart[trayIdx];
+
+    const usage = {
+      brand: tray ? tray.brand : mapping.filamentType,
+      type: mapping.filamentType || (tray ? tray.type : 'Unknown'),
+      color: mapping.sourceColor || (tray ? tray.color : 'Unknown'),
+      grams_used: gramsUsed,
+      trayIndex: trayIdx,
+    };
+
+    log('info', `Tray ${trayIdx} (A${trayIdx + 1}): ${gramsUsed}g ${usage.type} (${usage.brand}) — source: slicer estimate`);
     await deductFilament(usage);
   }
 
-  log('info', 'Print filament deductions complete');
+  log('info', 'Print filament deductions complete ✅');
 }
 
 // ==================== MQTT Message Handler ====================
@@ -182,7 +226,7 @@ function handleMessage(topic, messageBuffer) {
   try {
     data = JSON.parse(messageBuffer.toString());
   } catch (e) {
-    return; // Ignore non-JSON messages
+    return;
   }
 
   if (!data.print) return;
@@ -191,16 +235,9 @@ function handleMessage(topic, messageBuffer) {
   const gcodeState = print.gcode_state;
   const progress = print.mc_percent;
 
-  // Debug: log slicer weight data if present
-  if (print.total_weight !== undefined || print.subtask_name !== undefined || print.mc_remaining !== undefined) {
-    log('debug', 'Print metadata:', JSON.stringify({
-      subtask_name: print.subtask_name,
-      total_weight: print.total_weight,
-      mc_remaining: print.mc_remaining,
-      mc_percent: print.mc_percent,
-      gcode_state: print.gcode_state,
-      ams_detail_mapping: print.ams_detail_mapping,
-    }));
+  // Track progress for failed print scaling
+  if (typeof progress === 'number') {
+    printState.lastProgress = progress;
   }
 
   // Track active tray
@@ -217,14 +254,13 @@ function handleMessage(topic, messageBuffer) {
     }
   }
 
-  // Late AMS capture: if print is running but we missed the tray snapshot, grab it now
-  if (printState.printRunning && Object.keys(printState.traysAtStart).length === 0 && print.ams) {
+  // Capture/update AMS tray info whenever available during a print
+  if (printState.printRunning && print.ams) {
     const snapshot = snapshotTrays(print.ams);
-    if (Object.keys(snapshot).length > 0) {
+    if (Object.keys(snapshot).length > 0 && Object.keys(printState.traysAtStart).length === 0) {
       printState.traysAtStart = snapshot;
-      log('info', 'Late AMS tray snapshot captured:', snapshot);
+      log('info', 'AMS tray snapshot captured:', snapshot);
 
-      // Also record active tray if available
       if (print.ams.tray_now !== undefined) {
         const trayNow = parseInt(print.ams.tray_now, 10);
         if (trayNow >= 0 && trayNow <= 3) {
@@ -245,13 +281,12 @@ function handleMessage(topic, messageBuffer) {
       printState.printRunning = true;
       printState.printStartTime = new Date();
       printState.activeTraysDuringPrint = new Set();
+      printState.lastProgress = 0;
 
-      // Snapshot tray state at print start
       if (print.ams) {
         printState.traysAtStart = snapshotTrays(print.ams);
         log('info', 'Print started — captured AMS tray snapshot:', printState.traysAtStart);
 
-        // Record current active tray
         const trayNow = parseInt(print.ams.tray_now, 10);
         if (trayNow >= 0 && trayNow <= 3) {
           printState.activeTraysDuringPrint.add(trayNow);
@@ -259,7 +294,7 @@ function handleMessage(topic, messageBuffer) {
         }
       } else {
         printState.traysAtStart = {};
-        log('info', 'Print started — no AMS data available');
+        log('info', 'Print started — AMS data will be captured from next message');
       }
     }
 
@@ -271,7 +306,7 @@ function handleMessage(topic, messageBuffer) {
         : 0;
       log('info', `Print ${gcodeState.toLowerCase()} after ~${duration} minutes`);
 
-      handlePrintEnd(gcodeState, print.ams).catch(err => {
+      handlePrintEnd(gcodeState).catch(err => {
         log('error', 'Error handling print end:', err.message);
       });
     }
@@ -280,14 +315,12 @@ function handleMessage(topic, messageBuffer) {
   // Progress milestones (log every 25%)
   if (typeof progress === 'number' && printState.printRunning) {
     if (progress > 0 && progress % 25 === 0) {
-      // Only log once per milestone by checking if we haven't already
       const milestoneKey = `_milestone_${progress}`;
       if (!printState[milestoneKey]) {
         printState[milestoneKey] = true;
         log('info', `Print progress: ${progress}%`);
       }
     }
-    // Reset milestones on new print
     if (progress === 0) {
       for (const key of Object.keys(printState)) {
         if (key.startsWith('_milestone_')) delete printState[key];
@@ -396,18 +429,17 @@ function main() {
   log('info', `MQTT mode: ${config.cloud.enabled ? 'CLOUD' : 'LOCAL'} (${config.cloud.enabled ? config.cloud.server : config.printer.ip})`);
   log('info', `Tracker API: ${config.tracker.apiUrl}`);
   log('info', `API Key configured: ${config.tracker.apiKey ? 'yes' : 'NO — deductions will fail!'}`);
+  log('info', `Cloud API: ${config.cloud.token ? 'configured (slicer weight lookup enabled)' : 'NOT configured — will fall back to percentage estimates'}`);
 
   startHealthServer();
   const client = connectMqtt();
 
-  // Graceful shutdown
   const shutdown = (signal) => {
     log('info', `Received ${signal}, shutting down...`);
     client.end(true, () => {
       log('info', 'MQTT disconnected');
       process.exit(0);
     });
-    // Force exit after 5s
     setTimeout(() => process.exit(0), 5000);
   };
 
