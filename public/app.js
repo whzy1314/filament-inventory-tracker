@@ -3,6 +3,11 @@ let filaments = [];
 let usedFilaments = [];
 let currentEditId = null;
 let deleteFilamentId = null;
+
+// Format weight to 2 decimal places
+function formatWeight(w) {
+    return (typeof w === 'number' ? w : parseFloat(w) || 0).toFixed(2);
+}
 let useFilamentId = null;
 let customColorsCache = [];
 let customTypesCache = [];
@@ -314,7 +319,7 @@ function createFilamentCard(filament, isUsed = false) {
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Weight:</span>
-                    <span class="detail-value">${filament.weight_remaining}g</span>
+                    <span class="detail-value">${formatWeight(filament.weight_remaining)}g</span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">${dateLabel}:</span>
@@ -369,7 +374,7 @@ function updateStats(filamentsToCount = filaments) {
 
     totalFilaments.textContent = total;
     totalBrands.textContent = brands;
-    totalWeight.textContent = `${weight}g`;
+    totalWeight.textContent = `${formatWeight(weight)}g`;
 }
 
 function updateUsedStats() {
@@ -542,7 +547,7 @@ function showDeleteModal(id) {
     if (filament) {
         document.getElementById('deletePreview').innerHTML = `
             <strong>${escapeHtml(filament.brand)} - ${escapeHtml(filament.type)}</strong><br>
-            <small>Color: ${escapeHtml(filament.color)} | Weight: ${filament.weight_remaining}g</small>
+            <small>Color: ${escapeHtml(filament.color)} | Weight: ${formatWeight(filament.weight_remaining)}g</small>
         `;
     }
 
@@ -1713,7 +1718,7 @@ function showReferencingFilamentsModal(itemType, itemName, referencingFilaments)
                                         <span class="color-indicator" style="${colorStyle}"></span>
                                         <div>
                                             <strong>${escapeHtml(filament.brand)} - ${escapeHtml(filament.type)}</strong><br>
-                                            <small style="color: #666;">Color: ${escapeHtml(filament.color)} | Weight: ${filament.weight_remaining}g</small>
+                                            <small style="color: #666;">Color: ${escapeHtml(filament.color)} | Weight: ${formatWeight(filament.weight_remaining)}g</small>
                                         </div>
                                     </div>
                                     <button class="btn btn-secondary btn-small" onclick="editFilament(${filament.id}); closeReferencingFilamentsModal();" title="Edit this filament">
@@ -1910,8 +1915,8 @@ function applyFilters() {
     currentFilters.spoolTypes = Array.from(spoolTypeFilter.selectedOptions).map(option => option.value).filter(v => v);
     currentFilters.dateFrom = dateFromFilter.value || null;
     currentFilters.dateTo = dateToFilter.value || null;
-    currentFilters.weightMin = weightMinFilter.value ? parseInt(weightMinFilter.value) : null;
-    currentFilters.weightMax = weightMaxFilter.value ? parseInt(weightMaxFilter.value) : null;
+    currentFilters.weightMin = weightMinFilter.value ? parseFloat(weightMinFilter.value) : null;
+    currentFilters.weightMax = weightMaxFilter.value ? parseFloat(weightMaxFilter.value) : null;
 
     // Check if any filters are active
     isFiltersActive = currentFilters.brands.length > 0 ||

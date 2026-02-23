@@ -810,9 +810,9 @@ app.post('/api/filaments/:id/use', authenticateToken, (req, res) => {
 
     let newWeight;
     if (usageType === 'used') {
-      newWeight = row.weight_remaining - amount;
+      newWeight = Math.round((row.weight_remaining - amount) * 100) / 100;
     } else {
-      newWeight = amount;
+      newWeight = Math.round(amount * 100) / 100;
     }
 
     if (newWeight < 0) {
@@ -1263,7 +1263,7 @@ app.post('/api/filaments/deduct', authenticateApiKey, (req, res) => {
   `;
 
   const deductFromFilament = (filament, matchedBy) => {
-    let newWeight = filament.weight_remaining - grams_used;
+    let newWeight = Math.round((filament.weight_remaining - grams_used) * 100) / 100;
     if (newWeight < 0) newWeight = 0;
     const isArchived = newWeight === 0 ? 1 : 0;
 

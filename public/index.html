@@ -112,9 +112,9 @@
                 <div class="filter-group range-group">
                     <label for="filterWeightRange">Weight (g)</label>
                     <div class="weight-range">
-                        <input type="number" id="filterWeightMin" placeholder="Min" min="0" max="10000">
+                        <input type="number" id="filterWeightMin" placeholder="Min" min="0" max="10000" step="0.01">
                         <span>to</span>
-                        <input type="number" id="filterWeightMax" placeholder="Max" min="0" max="10000">
+                        <input type="number" id="filterWeightMax" placeholder="Max" min="0" max="10000" step="0.01">
                     </div>
                 </div>
             </div>
@@ -349,7 +349,7 @@
 
                     <div class="form-group">
                         <label for="weightRemaining">Weight Remaining (grams)</label>
-                        <input type="number" id="weightRemaining" min="0" max="10000" step="1" value="1000" required>
+                        <input type="number" id="weightRemaining" min="0" max="10000" step="0.01" value="1000" required>
                     </div>
 
                     <div class="form-group">
