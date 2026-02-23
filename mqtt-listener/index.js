@@ -191,6 +191,18 @@ function handleMessage(topic, messageBuffer) {
   const gcodeState = print.gcode_state;
   const progress = print.mc_percent;
 
+  // Debug: log slicer weight data if present
+  if (print.total_weight !== undefined || print.subtask_name !== undefined || print.mc_remaining !== undefined) {
+    log('debug', 'Print metadata:', JSON.stringify({
+      subtask_name: print.subtask_name,
+      total_weight: print.total_weight,
+      mc_remaining: print.mc_remaining,
+      mc_percent: print.mc_percent,
+      gcode_state: print.gcode_state,
+      ams_detail_mapping: print.ams_detail_mapping,
+    }));
+  }
+
   // Track active tray
   if (print.ams && typeof print.ams.tray_now !== 'undefined') {
     const trayNow = parseInt(print.ams.tray_now, 10);
