@@ -1945,12 +1945,134 @@ select::-ms-expand {
     transform: translateX(-50%) scaleX(1);
 }
 
+/* --- Mobile Dashboard View --- */
+.mobile-dashboard-view {
+    display: none;
+    padding: 16px;
+    padding-bottom: 90px;
+}
+
+.mobile-dash-section {
+    background: white;
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+.mobile-dash-section h3 {
+    font-size: 1rem;
+    color: #333;
+    margin: 0 0 12px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.mobile-dash-section h3 i {
+    color: #667eea;
+    font-size: 0.95rem;
+}
+
+.mobile-dash-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.mobile-dash-stat {
+    text-align: center;
+    padding: 12px 6px;
+    background: linear-gradient(135deg, #667eea10, #764ba210);
+    border-radius: 10px;
+}
+
+.mobile-dash-stat-number {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #333;
+}
+
+.mobile-dash-stat-label {
+    font-size: 0.7rem;
+    color: #888;
+    margin-top: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.mobile-dash-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.mobile-dash-empty {
+    text-align: center;
+    color: #aaa;
+    font-size: 0.85rem;
+    padding: 16px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.mobile-dash-empty i {
+    font-size: 0.9rem;
+}
+
+.mobile-dash-deduction-item,
+.mobile-dash-low-stock-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.mobile-dash-deduction-item .color-indicator,
+.mobile-dash-low-stock-item .color-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.mobile-dash-deduction-info,
+.mobile-dash-low-stock-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.mobile-dash-deduction-name,
+.mobile-dash-low-stock-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #333;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mobile-dash-deduction-detail,
+.mobile-dash-low-stock-detail {
+    font-size: 0.75rem;
+    color: #888;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 /* --- Mobile Settings Panel --- */
 .mobile-settings-panel {
     display: none;
     background: white;
     border-radius: 16px;
-    margin: 10px 0 80px 0;
+    margin: 16px;
+    margin-bottom: 90px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
     overflow: hidden;
 }

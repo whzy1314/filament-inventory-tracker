@@ -200,6 +200,11 @@ async function loadFilaments() {
         renderFilaments(filaments.filter(f => !f.is_archived));
         updateStats();
         populateHistoryFilter();
+        // Refresh mobile dashboard if it's currently visible
+        const dashView = document.getElementById('mobileDashboardView');
+        if (dashView && dashView.style.display === 'block') {
+            renderMobileDashboard();
+        }
     } catch (error) {
         console.error('Failed to load filaments:', error);
     } finally {
@@ -2474,7 +2479,6 @@ function initMobileNav() {
             switch (tab) {
                 case 'dashboard':
                     showMobileSection('dashboard');
-                    switchTab('inventoryTab');
                     break;
                 case 'inventory':
                     showMobileSection('inventory');
@@ -2514,14 +2518,25 @@ function initMobileNav() {
     if (settingsLogout) {
         settingsLogout.addEventListener('click', logout);
     }
+
+    // On mobile, show dashboard view on initial load
+    if (window.innerWidth <= 768) {
+        showMobileSection('dashboard');
+    }
 }
 
 function showMobileSection(section) {
     const settingsPanel = document.getElementById('mobileSettingsPanel');
+    const dashboardView = document.getElementById('mobileDashboardView');
     const container = document.querySelector('.container');
 
-    // Show/hide settings
+    // Hide both overlay panels first
+    if (settingsPanel) settingsPanel.style.display = 'none';
+    if (dashboardView) dashboardView.style.display = 'none';
+
     if (section === 'settings') {
+        // Hide main container content, show settings
+        if (container) container.style.display = 'none';
         if (settingsPanel) settingsPanel.style.display = 'block';
         // Update settings info
         if (currentUser) {
@@ -2538,8 +2553,90 @@ function showMobileSection(section) {
                 adminBtn.style.display = currentUser.role === 'admin' ? 'flex' : 'none';
             }
         }
+    } else if (section === 'dashboard') {
+        // Hide main container content, show dashboard
+        if (container) container.style.display = 'none';
+        if (dashboardView) dashboardView.style.display = 'block';
+        renderMobileDashboard();
     } else {
-        if (settingsPanel) settingsPanel.style.display = 'none';
+        // Show main container for inventory/history
+        if (container) container.style.display = 'block';
+    }
+}
+
+async function renderMobileDashboard() {
+    const activeFilaments = filaments.filter(f => !f.is_archived);
+
+    // Summary stats
+    const totalSpools = activeFilaments.length;
+    const totalWeight = activeFilaments.reduce((sum, f) => sum + (f.weight_remaining || 0), 0);
+    const brandsCount = new Set(activeFilaments.map(f => f.brand.toLowerCase())).size;
+
+    const dashSpools = document.getElementById('dashTotalSpools');
+    const dashWeight = document.getElementById('dashTotalWeight');
+    const dashBrands = document.getElementById('dashBrandsCount');
+    if (dashSpools) dashSpools.textContent = totalSpools;
+    if (dashWeight) dashWeight.textContent = `${formatWeight(totalWeight)}g`;
+    if (dashBrands) dashBrands.textContent = brandsCount;
+
+    // Low stock alerts (under 100g)
+    const lowStockEl = document.getElementById('dashLowStock');
+    if (lowStockEl) {
+        const lowStock = activeFilaments
+            .filter(f => (f.weight_remaining || 0) < 100)
+            .sort((a, b) => (a.weight_remaining || 0) - (b.weight_remaining || 0));
+
+        if (lowStock.length === 0) {
+            lowStockEl.innerHTML = '<div class="mobile-dash-empty"><i class="fas fa-check-circle"></i> All spools above 100g</div>';
+        } else {
+            lowStockEl.innerHTML = lowStock.map(f => {
+                const pct = f.original_weight ? Math.round(((f.weight_remaining || 0) / f.original_weight) * 100) : 0;
+                const colorStyle = f.color_hex
+                    ? `background-color: ${f.color_hex};${f.color_hex.toLowerCase() === '#ffffff' ? ' border: 1px solid #ccc;' : ''}`
+                    : 'background-color: #ccc;';
+                return `<div class="mobile-dash-low-stock-item">
+                    <span class="color-indicator" style="${colorStyle}"></span>
+                    <div class="mobile-dash-low-stock-info">
+                        <span class="mobile-dash-low-stock-name">${escapeHtml(f.brand)} ${escapeHtml(f.type)}</span>
+                        <span class="mobile-dash-low-stock-detail">${escapeHtml(f.color || 'Unknown')} &middot; ${formatWeight(f.weight_remaining)}g left (${pct}%)</span>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+    }
+
+    // Recent deductions (last 5)
+    const recentEl = document.getElementById('dashRecentDeductions');
+    if (recentEl) {
+        try {
+            const response = await fetch('/api/deduction-history?limit=5&offset=0');
+            if (!response.ok) throw new Error('Failed');
+            const data = await response.json();
+
+            if (data.history.length === 0) {
+                recentEl.innerHTML = '<div class="mobile-dash-empty"><i class="fas fa-clock-rotate-left"></i> No deductions yet</div>';
+            } else {
+                recentEl.innerHTML = data.history.map(entry => {
+                    const date = new Date(entry.created_at + 'Z');
+                    const dateStr = date.toLocaleDateString();
+                    const colorStyle = entry.color_hex
+                        ? `background-color: ${entry.color_hex};${entry.color_hex.toLowerCase() === '#ffffff' ? ' border: 1px solid #ccc;' : ''}`
+                        : 'background-color: #ccc;';
+                    const filamentName = entry.brand && entry.type
+                        ? `${escapeHtml(entry.brand)} ${escapeHtml(entry.type)}`
+                        : 'Deleted filament';
+                    return `<div class="mobile-dash-deduction-item">
+                        <span class="color-indicator" style="${colorStyle}"></span>
+                        <div class="mobile-dash-deduction-info">
+                            <span class="mobile-dash-deduction-name">${filamentName}</span>
+                            <span class="mobile-dash-deduction-detail">-${formatWeight(entry.grams_used)}g &middot; ${dateStr}${entry.print_name ? ' &middot; ' + escapeHtml(entry.print_name) : ''}</span>
+                        </div>
+                    </div>`;
+                }).join('');
+            }
+        } catch (e) {
+            recentEl.innerHTML = '<div class="mobile-dash-empty"><i class="fas fa-exclamation-circle"></i> Could not load history</div>';
+        }
     }
 }
 
