@@ -1,4 +1,4 @@
-const CACHE_NAME = 'filament-tracker-v1';
+const CACHE_NAME = 'filament-tracker-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
