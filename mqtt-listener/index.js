@@ -217,7 +217,16 @@ async function handlePrintEnd(finalState) {
     // Cloud API provides the weight per tray (accurate), MQTT provides what's
     // actually in each tray (accurate even after swaps).
     const cloudTrayIdx = (mapping.ams || 1) - 1;
-    const trayIdx = cloudTrayIdx;
+    // For single-filament prints, trust MQTT active tray over cloud tray index
+    // (cloud can report wrong tray when filament is swapped via Handy app/printer)
+    let trayIdx = cloudTrayIdx;
+    if (amsMapping.length === 1 && printState.activeTraysDuringPrint.size === 1) {
+      const mqttTray = [...printState.activeTraysDuringPrint][0];
+      if (mqttTray !== cloudTrayIdx) {
+        log('info', `Overriding cloud tray ${cloudTrayIdx} (A${cloudTrayIdx + 1}) with MQTT active tray ${mqttTray} (A${mqttTray + 1})`);
+        trayIdx = mqttTray;
+      }
+    }
     const tray = printState.traysAtStart[trayIdx];
 
     // Use MQTT tray color if available, fall back to cloud
