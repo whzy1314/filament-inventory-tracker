@@ -1717,3 +1717,852 @@ select::-ms-expand {
         display: none;
     }
 }
+
+/* ==================== PWA & Mobile Enhancements ==================== */
+
+/* --- PWA Install Banner --- */
+.pwa-install-banner {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    padding: 16px 20px;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+    z-index: 2000;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 16px 16px 0 0;
+}
+
+.pwa-install-banner.show {
+    transform: translateY(0);
+}
+
+.pwa-install-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+}
+
+.pwa-install-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+
+.pwa-install-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.pwa-install-text strong {
+    font-size: 0.95rem;
+    color: #333;
+}
+
+.pwa-install-text span {
+    font-size: 0.8rem;
+    color: #666;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pwa-install-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.pwa-install-dismiss {
+    background: none;
+    border: none;
+    color: #666;
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    border-radius: 8px;
+}
+
+.pwa-install-dismiss:hover {
+    background: #f0f0f0;
+}
+
+.pwa-install-btn {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pwa-install-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+/* --- Pull to Refresh --- */
+.pull-to-refresh {
+    position: fixed;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%) translateY(-60px);
+    z-index: 1500;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+}
+
+.pull-to-refresh-spinner {
+    width: 40px;
+    height: 40px;
+    background: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+    color: #667eea;
+    font-size: 1rem;
+    transition: transform 0.2s ease;
+}
+
+.pull-to-refresh.ready .pull-to-refresh-spinner {
+    color: #4CAF50;
+}
+
+.pull-to-refresh.ready .pull-to-refresh-spinner i {
+    animation: none;
+}
+
+.pull-to-refresh.refreshing .pull-to-refresh-spinner i {
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* --- Mobile Floating Action Button (FAB) --- */
+.mobile-fab {
+    display: none;
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #4CAF50, #45a049);
+    color: white;
+    border: none;
+    font-size: 1.4rem;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(76, 175, 80, 0.4);
+    z-index: 999;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-fab:active {
+    transform: scale(0.92);
+    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+}
+
+/* --- Mobile Bottom Navigation --- */
+.mobile-bottom-nav {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    border-top: 1px solid #e0e0e0;
+    z-index: 1000;
+    padding: 4px 0;
+    padding-bottom: max(4px, env(safe-area-inset-bottom));
+}
+
+.bottom-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 0;
+    background: none;
+    border: none;
+    color: #999;
+    font-size: 0.65rem;
+    cursor: pointer;
+    transition: color 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+    position: relative;
+    gap: 2px;
+}
+
+.bottom-nav-item i {
+    font-size: 1.2rem;
+    transition: transform 0.2s ease;
+}
+
+.bottom-nav-item.active {
+    color: #667eea;
+}
+
+.bottom-nav-item.active i {
+    transform: scale(1.1);
+}
+
+.bottom-nav-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%) scaleX(0);
+    width: 32px;
+    height: 2px;
+    background: #667eea;
+    border-radius: 1px;
+    transition: transform 0.2s ease;
+}
+
+.bottom-nav-item.active::before {
+    transform: translateX(-50%) scaleX(1);
+}
+
+/* --- Mobile Settings Panel --- */
+.mobile-settings-panel {
+    display: none;
+    background: white;
+    border-radius: 16px;
+    margin: 10px 0 80px 0;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+}
+
+.mobile-settings-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.mobile-settings-header h2 {
+    font-size: 1.3rem;
+    color: #333;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.mobile-settings-header h2 i {
+    color: #667eea;
+}
+
+.mobile-settings-content {
+    padding: 8px 0;
+}
+
+.settings-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 14px 24px;
+    background: none;
+    border: none;
+    font-size: 0.95rem;
+    color: #333;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+    text-align: left;
+}
+
+.settings-item:active {
+    background: #f5f5f5;
+}
+
+.settings-item i:first-child {
+    font-size: 1.1rem;
+    color: #667eea;
+    width: 24px;
+    text-align: center;
+}
+
+.settings-item span {
+    flex: 1;
+}
+
+.settings-arrow {
+    color: #ccc;
+    font-size: 0.8rem;
+}
+
+.settings-item.settings-logout {
+    color: #dc3545;
+}
+
+.settings-item.settings-logout i:first-child {
+    color: #dc3545;
+}
+
+.settings-divider {
+    height: 1px;
+    background: #f0f0f0;
+    margin: 4px 0;
+}
+
+.settings-user-info {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 24px;
+}
+
+.settings-user-info > i {
+    font-size: 2rem;
+    color: #667eea;
+}
+
+.settings-user-info div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.settings-user-info strong {
+    font-size: 1rem;
+    color: #333;
+}
+
+.settings-role-badge {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.settings-role-badge.admin {
+    color: #f5576c;
+}
+
+.settings-role-badge.user {
+    color: #667eea;
+}
+
+/* ==================== Mobile Responsive (≤768px) ==================== */
+@media (max-width: 768px) {
+    /* Show mobile-only elements */
+    .mobile-fab {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .mobile-bottom-nav {
+        display: flex;
+    }
+
+    /* Add bottom padding for bottom nav */
+    body {
+        padding-bottom: 70px;
+    }
+
+    .container {
+        padding-bottom: 80px;
+    }
+
+    /* Hide desktop Add Filament button and Manage Custom on mobile (they're in bottom nav/settings) */
+    #addFilamentBtn {
+        display: none !important;
+    }
+
+    /* Header compaction for mobile */
+    .header {
+        margin-bottom: 16px;
+        gap: 10px;
+    }
+
+    .header h1 {
+        font-size: 1.6rem;
+        gap: 10px;
+    }
+
+    .header-logo {
+        height: 36px;
+        width: 36px;
+    }
+
+    .header p {
+        font-size: 0.85rem;
+    }
+
+    /* Compact user menu for mobile */
+    .user-menu {
+        padding: 6px 14px;
+        gap: 10px;
+    }
+
+    .user-info span {
+        font-size: 0.85rem;
+    }
+
+    /* Larger touch targets for buttons */
+    .btn {
+        min-height: 44px;
+        min-width: 44px;
+    }
+
+    .btn-small {
+        min-height: 36px;
+        min-width: 36px;
+        padding: 8px 14px;
+    }
+
+    /* Filament card touch-friendly improvements */
+    .filament-card {
+        padding: 16px;
+        border-radius: 14px;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .filament-card:active {
+        transform: scale(0.98);
+    }
+
+    /* Larger action buttons on cards */
+    .filament-actions .btn {
+        min-width: 40px;
+        min-height: 40px;
+        padding: 8px 12px;
+        font-size: 0.9rem;
+    }
+
+    /* Better weight bar on mobile */
+    .weight-bar {
+        height: 8px;
+        border-radius: 4px;
+        margin-top: 8px;
+    }
+
+    .weight-fill {
+        border-radius: 4px;
+    }
+
+    /* Tabs compact for mobile */
+    .tabs {
+        margin-bottom: 16px;
+        gap: 0;
+    }
+
+    .tab-link {
+        flex: 1;
+        text-align: center;
+        padding: 10px 12px;
+        font-size: 0.9rem;
+    }
+
+    /* Stats cards compact */
+    .stats {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        margin-bottom: 16px;
+    }
+
+    .stat-card {
+        padding: 10px 6px;
+    }
+
+    /* Full-screen modals on mobile */
+    .modal.show {
+        padding: 0;
+        align-items: stretch;
+    }
+
+    .modal-content {
+        max-width: 100%;
+        max-height: 100vh;
+        height: 100vh;
+        border-radius: 0;
+        animation: slideUpFull 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .modal-header {
+        padding: 16px 20px;
+        position: sticky;
+        top: 0;
+        background: white;
+        z-index: 1;
+    }
+
+    .close-btn {
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal-body {
+        flex: 1;
+        padding: 20px;
+    }
+
+    .form-actions {
+        position: sticky;
+        bottom: 0;
+        padding: 16px 20px;
+        padding-bottom: max(16px, env(safe-area-inset-bottom));
+        background: #f8f9fa;
+    }
+
+    /* Filters panel mobile improvements */
+    .filters-panel {
+        border-radius: 12px;
+        margin-bottom: 16px;
+    }
+
+    .filters-content {
+        padding: 16px;
+        gap: 12px;
+    }
+
+    .filter-group select[multiple] {
+        min-height: 60px;
+    }
+
+    /* Toast positioning above bottom nav */
+    .toast {
+        bottom: 80px;
+        right: 16px;
+        left: 16px;
+        transform: translateY(200px);
+    }
+
+    .toast.show {
+        transform: translateY(0);
+    }
+
+    /* PWA install banner above bottom nav */
+    .pwa-install-banner {
+        bottom: 58px;
+        flex-direction: column;
+        gap: 12px;
+        border-radius: 16px 16px 0 0;
+    }
+
+    .pwa-install-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    /* Manage Custom button compact on mobile */
+    .controls > div:last-child {
+        flex-wrap: wrap;
+    }
+}
+
+@keyframes slideUpFull {
+    from {
+        transform: translateY(100%);
+        opacity: 0.5;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* ==================== Small Phone (≤414px) ==================== */
+@media (max-width: 414px) {
+    .container {
+        padding: 12px;
+        padding-bottom: 80px;
+    }
+
+    .header {
+        margin-bottom: 12px;
+    }
+
+    .header h1 {
+        font-size: 1.4rem;
+    }
+
+    .header p {
+        font-size: 0.8rem;
+    }
+
+    .controls {
+        gap: 10px;
+        margin-bottom: 16px;
+    }
+
+    .search-container {
+        min-width: 100%;
+    }
+
+    .search-input {
+        padding: 10px 14px;
+    }
+
+    /* Single column filament grid */
+    .filament-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .filament-card {
+        padding: 14px;
+    }
+
+    .filament-brand {
+        font-size: 1rem;
+    }
+
+    .filament-type {
+        font-size: 0.8rem;
+    }
+
+    .detail-row {
+        font-size: 0.82rem;
+    }
+
+    /* Compact action buttons */
+    .filament-header {
+        flex-direction: row;
+        align-items: flex-start;
+    }
+
+    .filament-actions {
+        gap: 4px;
+    }
+
+    .filament-actions .btn {
+        min-width: 36px;
+        min-height: 36px;
+        padding: 6px 10px;
+    }
+
+    /* Stats */
+    .stats {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+    }
+
+    .stat-card {
+        padding: 8px 4px;
+        border-radius: 8px;
+    }
+
+    .stat-number {
+        font-size: 0.95rem;
+    }
+
+    .stat-label {
+        font-size: 0.55rem;
+    }
+
+    /* Tabs */
+    .tab-link {
+        font-size: 0.85rem;
+        padding: 8px 10px;
+    }
+}
+
+/* ==================== Extra Small Phone (≤375px) ==================== */
+@media (max-width: 375px) {
+    .container {
+        padding: 10px;
+        padding-bottom: 76px;
+    }
+
+    .header h1 {
+        font-size: 1.3rem;
+        gap: 8px;
+    }
+
+    .header-logo {
+        height: 30px;
+        width: 30px;
+    }
+
+    .header p {
+        font-size: 0.75rem;
+    }
+
+    .user-menu {
+        padding: 5px 10px;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .btn-logout span,
+    .btn-admin span {
+        display: none;
+    }
+
+    .filament-grid {
+        gap: 10px;
+    }
+
+    .filament-card {
+        padding: 12px;
+    }
+
+    .filament-brand {
+        font-size: 0.95rem;
+    }
+
+    .detail-row {
+        font-size: 0.8rem;
+        margin-bottom: 4px;
+    }
+
+    .weight-bar {
+        height: 6px;
+    }
+
+    /* Bottom nav compact */
+    .bottom-nav-item {
+        font-size: 0.6rem;
+    }
+
+    .bottom-nav-item i {
+        font-size: 1.1rem;
+    }
+
+    /* FAB position */
+    .mobile-fab {
+        bottom: 74px;
+        right: 14px;
+        width: 52px;
+        height: 52px;
+        font-size: 1.2rem;
+    }
+}
+
+/* ==================== Smooth Transitions & Animations ==================== */
+
+/* Card entry animation */
+.filament-card {
+    animation: cardFadeIn 0.3s ease forwards;
+}
+
+@keyframes cardFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Stagger card animations */
+.filament-card:nth-child(1) { animation-delay: 0s; }
+.filament-card:nth-child(2) { animation-delay: 0.05s; }
+.filament-card:nth-child(3) { animation-delay: 0.1s; }
+.filament-card:nth-child(4) { animation-delay: 0.15s; }
+.filament-card:nth-child(5) { animation-delay: 0.2s; }
+.filament-card:nth-child(6) { animation-delay: 0.25s; }
+.filament-card:nth-child(n+7) { animation-delay: 0.3s; }
+
+/* Weight bar animation */
+.weight-fill {
+    animation: weightGrow 0.8s ease-out;
+}
+
+@keyframes weightGrow {
+    from { width: 0 !important; }
+}
+
+/* Stat card hover/tap feedback */
+.stat-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Smooth tab transitions */
+.tab-content {
+    transition: opacity 0.2s ease;
+}
+
+/* Settings panel animation */
+.mobile-settings-panel {
+    animation: settingsFadeIn 0.2s ease;
+}
+
+@keyframes settingsFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Improved filter panel animation */
+.filters-panel {
+    animation: filterSlideDown 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes filterSlideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+        max-height: 0;
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+        max-height: 500px;
+    }
+}
+
+/* Desktop: hide mobile elements */
+@media (min-width: 769px) {
+    .mobile-fab,
+    .mobile-bottom-nav,
+    .mobile-settings-panel,
+    .pull-to-refresh {
+        display: none !important;
+    }
+}
+
+/* ==================== Safe Area (notch) Support ==================== */
+@supports (padding: env(safe-area-inset-bottom)) {
+    .mobile-bottom-nav {
+        padding-bottom: max(4px, env(safe-area-inset-bottom));
+    }
+
+    .mobile-fab {
+        bottom: calc(70px + env(safe-area-inset-bottom));
+    }
+
+    @media (max-width: 768px) {
+        body {
+            padding-bottom: calc(58px + env(safe-area-inset-bottom));
+        }
+
+        .toast {
+            bottom: calc(70px + env(safe-area-inset-bottom));
+        }
+    }
+}

@@ -2340,3 +2340,319 @@ window.showDeleteUserModal = showDeleteUserModal;
 window.closeDeleteUserModal = closeDeleteUserModal;
 window.confirmDeleteUser = confirmDeleteUser;
 window.openTab = openTab;
+
+// ==================== PWA & Mobile Enhancements ====================
+
+// --- Service Worker Registration ---
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+            .then((registration) => {
+                console.log('SW registered:', registration.scope);
+            })
+            .catch((err) => {
+                console.warn('SW registration failed:', err);
+            });
+    });
+}
+
+// --- PWA Install Prompt ---
+let deferredPrompt = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    // Only show if not dismissed recently
+    const dismissed = localStorage.getItem('pwa-install-dismissed');
+    if (dismissed) {
+        const dismissedTime = parseInt(dismissed, 10);
+        // Don't show again for 7 days
+        if (Date.now() - dismissedTime < 7 * 24 * 60 * 60 * 1000) return;
+    }
+    showInstallBanner();
+});
+
+function showInstallBanner() {
+    const banner = document.getElementById('pwaInstallBanner');
+    if (banner) {
+        banner.style.display = 'flex';
+        requestAnimationFrame(() => banner.classList.add('show'));
+    }
+}
+
+function hideInstallBanner() {
+    const banner = document.getElementById('pwaInstallBanner');
+    if (banner) {
+        banner.classList.remove('show');
+        setTimeout(() => { banner.style.display = 'none'; }, 300);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const installBtn = document.getElementById('pwaInstallBtn');
+    const dismissBtn = document.getElementById('pwaInstallDismiss');
+
+    if (installBtn) {
+        installBtn.addEventListener('click', async () => {
+            if (!deferredPrompt) return;
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            deferredPrompt = null;
+            hideInstallBanner();
+        });
+    }
+
+    if (dismissBtn) {
+        dismissBtn.addEventListener('click', () => {
+            localStorage.setItem('pwa-install-dismissed', Date.now().toString());
+            hideInstallBanner();
+        });
+    }
+});
+
+window.addEventListener('appinstalled', () => {
+    hideInstallBanner();
+    deferredPrompt = null;
+});
+
+// --- URL action handler (for PWA shortcuts) ---
+document.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('action') === 'add') {
+        // Wait for app to load then show add modal
+        setTimeout(() => { if (typeof showAddModal === 'function') showAddModal(); }, 500);
+    }
+});
+
+// --- Tab switching helper (no event needed) ---
+function switchTab(tabName) {
+    const tabContents = document.getElementsByClassName('tab-content');
+    for (let i = 0; i < tabContents.length; i++) {
+        tabContents[i].style.display = 'none';
+    }
+    const tabLinks = document.getElementsByClassName('tab-link');
+    for (let i = 0; i < tabLinks.length; i++) {
+        tabLinks[i].classList.remove('active');
+    }
+    const targetTab = document.getElementById(tabName);
+    if (targetTab) targetTab.style.display = 'block';
+    // Highlight matching tab link
+    for (let i = 0; i < tabLinks.length; i++) {
+        if (tabLinks[i].getAttribute('onclick') &&
+            tabLinks[i].getAttribute('onclick').includes(tabName)) {
+            tabLinks[i].classList.add('active');
+        }
+    }
+}
+
+// --- Mobile Bottom Navigation ---
+function initMobileNav() {
+    const bottomNav = document.getElementById('mobileBottomNav');
+    if (!bottomNav) return;
+
+    const navItems = bottomNav.querySelectorAll('.bottom-nav-item');
+    const fab = document.getElementById('mobileFab');
+    const settingsPanel = document.getElementById('mobileSettingsPanel');
+
+    navItems.forEach(item => {
+        item.addEventListener('click', () => {
+            const tab = item.dataset.tab;
+            navItems.forEach(n => n.classList.remove('active'));
+            item.classList.add('active');
+
+            // Hide settings panel
+            if (settingsPanel) settingsPanel.style.display = 'none';
+
+            switch (tab) {
+                case 'dashboard':
+                    showMobileSection('dashboard');
+                    switchTab('inventoryTab');
+                    break;
+                case 'inventory':
+                    showMobileSection('inventory');
+                    switchTab('inventoryTab');
+                    break;
+                case 'add':
+                    showAddModal();
+                    break;
+                case 'used':
+                    showMobileSection('inventory');
+                    switchTab('usedTab');
+                    break;
+                case 'settings':
+                    showMobileSection('settings');
+                    break;
+            }
+        });
+    });
+
+    // FAB
+    if (fab) {
+        fab.addEventListener('click', () => {
+            showAddModal();
+        });
+    }
+
+    // Settings panel buttons
+    const settingsAdmin = document.getElementById('settingsAdmin');
+    if (settingsAdmin) {
+        settingsAdmin.addEventListener('click', () => {
+            showAdminModal();
+        });
+    }
+
+    const settingsLogout = document.getElementById('settingsLogout');
+    if (settingsLogout) {
+        settingsLogout.addEventListener('click', logout);
+    }
+}
+
+function showMobileSection(section) {
+    const settingsPanel = document.getElementById('mobileSettingsPanel');
+    const container = document.querySelector('.container');
+
+    // Show/hide settings
+    if (section === 'settings') {
+        if (settingsPanel) settingsPanel.style.display = 'block';
+        // Update settings info
+        if (currentUser) {
+            const nameEl = document.getElementById('settingsUsername');
+            const roleEl = document.getElementById('settingsRole');
+            if (nameEl) nameEl.textContent = currentUser.username;
+            if (roleEl) {
+                roleEl.textContent = currentUser.role;
+                roleEl.className = 'settings-role-badge ' + currentUser.role;
+            }
+            // Show admin button if admin
+            const adminBtn = document.getElementById('settingsAdmin');
+            if (adminBtn) {
+                adminBtn.style.display = currentUser.role === 'admin' ? 'flex' : 'none';
+            }
+        }
+    } else {
+        if (settingsPanel) settingsPanel.style.display = 'none';
+    }
+}
+
+// --- Pull to Refresh ---
+function initPullToRefresh() {
+    let startY = 0;
+    let pulling = false;
+    const pullIndicator = document.getElementById('pullToRefresh');
+    const threshold = 80;
+
+    document.addEventListener('touchstart', (e) => {
+        if (window.scrollY === 0 && !document.querySelector('.modal.show')) {
+            startY = e.touches[0].clientY;
+            pulling = true;
+        }
+    }, { passive: true });
+
+    document.addEventListener('touchmove', (e) => {
+        if (!pulling || !pullIndicator) return;
+        const currentY = e.touches[0].clientY;
+        const diff = currentY - startY;
+
+        if (diff > 0 && window.scrollY === 0) {
+            const pullDistance = Math.min(diff, threshold * 1.5);
+            pullIndicator.style.transform = `translateY(${pullDistance - 60}px)`;
+            pullIndicator.style.opacity = Math.min(diff / threshold, 1);
+
+            if (diff > threshold) {
+                pullIndicator.classList.add('ready');
+            } else {
+                pullIndicator.classList.remove('ready');
+            }
+        }
+    }, { passive: true });
+
+    document.addEventListener('touchend', () => {
+        if (!pulling || !pullIndicator) return;
+        pulling = false;
+
+        if (pullIndicator.classList.contains('ready')) {
+            pullIndicator.classList.add('refreshing');
+            pullIndicator.style.transform = 'translateY(10px)';
+
+            // Refresh data
+            Promise.all([loadFilaments(), loadUsedFilaments()])
+                .finally(() => {
+                    setTimeout(() => {
+                        pullIndicator.classList.remove('ready', 'refreshing');
+                        pullIndicator.style.transform = '';
+                        pullIndicator.style.opacity = '0';
+                        showToast('Refreshed!', 'success');
+                    }, 600);
+                });
+        } else {
+            pullIndicator.style.transform = '';
+            pullIndicator.style.opacity = '0';
+            pullIndicator.classList.remove('ready');
+        }
+    }, { passive: true });
+}
+
+// --- Swipe to dismiss modals ---
+function initSwipeToDismiss() {
+    const modals = document.querySelectorAll('.modal');
+    modals.forEach(modal => {
+        let startY = 0;
+        let currentTranslate = 0;
+        const content = modal.querySelector('.modal-content');
+        if (!content) return;
+
+        content.addEventListener('touchstart', (e) => {
+            // Only initiate swipe from the modal header area
+            const header = content.querySelector('.modal-header');
+            if (!header) return;
+            const headerRect = header.getBoundingClientRect();
+            const touch = e.touches[0];
+            if (touch.clientY < headerRect.top || touch.clientY > headerRect.bottom) return;
+
+            startY = touch.clientY;
+            content.style.transition = 'none';
+        }, { passive: true });
+
+        content.addEventListener('touchmove', (e) => {
+            if (startY === 0) return;
+            const diff = e.touches[0].clientY - startY;
+            if (diff > 0) {
+                currentTranslate = diff;
+                content.style.transform = `translateY(${diff}px)`;
+                content.style.opacity = Math.max(1 - diff / 300, 0.5);
+            }
+        }, { passive: true });
+
+        content.addEventListener('touchend', () => {
+            if (startY === 0) return;
+            content.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+
+            if (currentTranslate > 150) {
+                // Dismiss
+                content.style.transform = 'translateY(100vh)';
+                content.style.opacity = '0';
+                setTimeout(() => {
+                    // Find and call the appropriate close function
+                    modal.classList.remove('show');
+                    document.body.style.overflow = '';
+                    content.style.transform = '';
+                    content.style.opacity = '';
+                }, 300);
+            } else {
+                content.style.transform = '';
+                content.style.opacity = '';
+            }
+            startY = 0;
+            currentTranslate = 0;
+        }, { passive: true });
+    });
+}
+
+// --- Initialize all mobile features ---
+document.addEventListener('DOMContentLoaded', () => {
+    initMobileNav();
+    initPullToRefresh();
+
+    // Delay swipe init until modals exist
+    setTimeout(initSwipeToDismiss, 1000);
+});
