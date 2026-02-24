@@ -199,6 +199,7 @@ async function loadFilaments() {
         filaments = await apiCall('/filaments');
         renderFilaments(filaments.filter(f => !f.is_archived));
         updateStats();
+        populateHistoryFilter();
     } catch (error) {
         console.error('Failed to load filaments:', error);
     } finally {
@@ -299,6 +300,9 @@ function createFilamentCard(filament, isUsed = false) {
                         <i class="fas fa-edit"></i>
                     </button>
                     ` : ''}
+                    <button class="btn btn-secondary btn-small" onclick="showSpoolHistory(${filament.id})" title="History">
+                        <i class="fas fa-clock-rotate-left"></i>
+                    </button>
                     <button class="btn btn-danger btn-small" onclick="showDeleteModal(${filament.id})" title="Delete">
                         <i class="fas fa-trash"></i>
                     </button>
@@ -2098,6 +2102,10 @@ function openTab(evt, tabName) {
     }
     document.getElementById(tabName).style.display = "block";
     evt.currentTarget.className += " active";
+
+    if (tabName === 'historyTab') {
+        loadDeductionHistory();
+    }
 }
 
 // ==================== Admin Panel Functions ====================
@@ -2475,9 +2483,10 @@ function initMobileNav() {
                 case 'add':
                     showAddModal();
                     break;
-                case 'used':
+                case 'history':
                     showMobileSection('inventory');
-                    switchTab('usedTab');
+                    switchTab('historyTab');
+                    loadDeductionHistory();
                     break;
                 case 'settings':
                     showMobileSection('settings');
@@ -2648,6 +2657,178 @@ function initSwipeToDismiss() {
     });
 }
 
+// ==================== Deduction History ====================
+
+let historyData = [];
+let historyOffset = 0;
+let historyTotal = 0;
+const HISTORY_PAGE_SIZE = 25;
+let historyFilterFilamentId = '';
+
+async function loadDeductionHistory(reset = true) {
+    if (reset) {
+        historyOffset = 0;
+        historyData = [];
+    }
+
+    const timeline = document.getElementById('historyTimeline');
+    const loadingEl = document.getElementById('historyLoading');
+    const emptyEl = document.getElementById('historyEmpty');
+    const paginationEl = document.getElementById('historyPagination');
+
+    if (reset) {
+        timeline.innerHTML = '';
+        loadingEl.style.display = 'block';
+        emptyEl.style.display = 'none';
+        paginationEl.style.display = 'none';
+    }
+
+    try {
+        let url = `/api/deduction-history?limit=${HISTORY_PAGE_SIZE}&offset=${historyOffset}`;
+        if (historyFilterFilamentId) {
+            url += `&filament_id=${historyFilterFilamentId}`;
+        }
+
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Failed to fetch history');
+
+        const data = await response.json();
+        historyTotal = data.total;
+        historyData = historyData.concat(data.history);
+        historyOffset += data.history.length;
+
+        loadingEl.style.display = 'none';
+
+        if (historyData.length === 0) {
+            emptyEl.style.display = 'block';
+            paginationEl.style.display = 'none';
+            return;
+        }
+
+        emptyEl.style.display = 'none';
+        renderHistory(data.history, !reset);
+        paginationEl.style.display = historyOffset < historyTotal ? 'flex' : 'none';
+    } catch (error) {
+        console.error('Error loading deduction history:', error);
+        loadingEl.style.display = 'none';
+        if (historyData.length === 0) {
+            emptyEl.style.display = 'block';
+        }
+    }
+}
+
+function renderHistory(entries, append = false) {
+    const timeline = document.getElementById('historyTimeline');
+    const html = entries.map(entry => createHistoryEntry(entry)).join('');
+    if (append) {
+        timeline.insertAdjacentHTML('beforeend', html);
+    } else {
+        timeline.innerHTML = html;
+    }
+}
+
+function createHistoryEntry(entry) {
+    const date = new Date(entry.created_at + 'Z');
+    const dateStr = date.toLocaleDateString();
+    const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    const colorName = entry.color || 'Unknown';
+    const colorStyle = entry.color_hex
+        ? `background-color: ${entry.color_hex};${entry.color_hex.toLowerCase() === '#ffffff' ? ' border-color: #999;' : ''}`
+        : (entry.color ? getColorStyleSync(entry.color) : 'background-color: #ccc;');
+
+    const sourceBadgeClass = entry.source === 'manual' ? 'source-manual' : (entry.source === 'api_key' ? 'source-auto' : 'source-other');
+    const sourceLabel = entry.source === 'manual' ? 'Manual' : (entry.source === 'api_key' ? 'Auto' : entry.source);
+
+    const filamentName = entry.brand && entry.type
+        ? `${escapeHtml(entry.brand)} ${escapeHtml(entry.type)}`
+        : 'Deleted filament';
+
+    return `
+        <div class="history-entry">
+            <div class="history-entry-header">
+                <div class="history-entry-filament">
+                    <span class="color-indicator" style="${colorStyle}"></span>
+                    <span class="history-filament-name">${filamentName}</span>
+                    <span class="history-color-name">${escapeHtml(colorName)}</span>
+                </div>
+                <span class="history-source-badge ${sourceBadgeClass}">${sourceLabel}</span>
+            </div>
+            <div class="history-entry-details">
+                <div class="history-weight-change">
+                    <span class="history-grams-used">-${formatWeight(entry.grams_used)}g</span>
+                    <span class="history-weight-range">${formatWeight(entry.weight_before)}g → ${formatWeight(entry.weight_after)}g</span>
+                </div>
+                ${entry.print_name ? `<div class="history-print-name"><i class="fas fa-cube"></i> ${escapeHtml(entry.print_name)}</div>` : ''}
+            </div>
+            <div class="history-entry-footer">
+                <span class="history-date"><i class="fas fa-clock"></i> ${dateStr} ${timeStr}</span>
+                ${entry.matched_by ? `<span class="history-matched-by">matched: ${escapeHtml(entry.matched_by)}</span>` : ''}
+            </div>
+        </div>
+    `;
+}
+
+function populateHistoryFilter() {
+    const select = document.getElementById('historyFilamentFilter');
+    if (!select) return;
+
+    const currentValue = select.value;
+    // Keep the "All Filaments" option and add filament options
+    select.innerHTML = '<option value="">All Filaments</option>';
+
+    const allFilaments = [...filaments, ...usedFilaments];
+    const seen = new Set();
+    allFilaments.forEach(f => {
+        if (!seen.has(f.id)) {
+            seen.add(f.id);
+            const opt = document.createElement('option');
+            opt.value = f.id;
+            opt.textContent = `${f.brand} ${f.type} - ${f.color}`;
+            select.appendChild(opt);
+        }
+    });
+
+    select.value = currentValue;
+}
+
+// Per-spool history modal
+async function showSpoolHistory(filamentId) {
+    const modal = document.getElementById('spoolHistoryModal');
+    const timeline = document.getElementById('spoolHistoryTimeline');
+    const loadingEl = document.getElementById('spoolHistoryLoading');
+
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+    timeline.innerHTML = '';
+    loadingEl.style.display = 'block';
+
+    try {
+        const response = await fetch(`/api/deduction-history?filament_id=${filamentId}&limit=100`);
+        if (!response.ok) throw new Error('Failed to fetch spool history');
+
+        const data = await response.json();
+        loadingEl.style.display = 'none';
+
+        if (data.history.length === 0) {
+            timeline.innerHTML = '<p class="history-empty-inline">No deduction history for this spool.</p>';
+            return;
+        }
+
+        timeline.innerHTML = data.history.map(entry => createHistoryEntry(entry)).join('');
+    } catch (error) {
+        console.error('Error loading spool history:', error);
+        loadingEl.style.display = 'none';
+        timeline.innerHTML = '<p class="history-empty-inline">Error loading history.</p>';
+    }
+}
+
+function closeSpoolHistoryModal() {
+    const modal = document.getElementById('spoolHistoryModal');
+    modal.classList.remove('show');
+    document.body.style.overflow = '';
+}
+
 // --- Initialize all mobile features ---
 document.addEventListener('DOMContentLoaded', () => {
     initMobileNav();
@@ -2655,4 +2836,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Delay swipe init until modals exist
     setTimeout(initSwipeToDismiss, 1000);
+
+    // History filter change handler
+    const historyFilter = document.getElementById('historyFilamentFilter');
+    if (historyFilter) {
+        historyFilter.addEventListener('change', (e) => {
+            historyFilterFilamentId = e.target.value;
+            loadDeductionHistory(true);
+        });
+    }
+
+    // History load more button
+    const loadMoreBtn = document.getElementById('historyLoadMore');
+    if (loadMoreBtn) {
+        loadMoreBtn.addEventListener('click', () => {
+            loadDeductionHistory(false);
+        });
+    }
 });

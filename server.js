@@ -218,6 +218,30 @@ function initializeDatabase() {
       });
     }
   });
+
+  // Deduction history table
+  const createDeductionHistoryQuery = `
+    CREATE TABLE IF NOT EXISTS deduction_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      filament_id INTEGER,
+      grams_used REAL,
+      weight_before REAL,
+      weight_after REAL,
+      source TEXT,
+      matched_by TEXT,
+      print_name TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (filament_id) REFERENCES filaments(id) ON DELETE SET NULL
+    )
+  `;
+
+  db.run(createDeductionHistoryQuery, (err) => {
+    if (err) {
+      console.error('Error creating deduction_history table:', err.message);
+    } else {
+      console.log('Deduction history table ready');
+    }
+  });
 }
 
 // Admin authorization middleware
@@ -808,6 +832,7 @@ app.post('/api/filaments/:id/use', authenticateToken, (req, res) => {
       return res.status(404).json({ error: 'Filament not found' });
     }
 
+    const weightBefore = row.weight_remaining;
     let newWeight;
     if (usageType === 'used') {
       newWeight = Math.round((row.weight_remaining - amount) * 100) / 100;
@@ -819,10 +844,11 @@ app.post('/api/filaments/:id/use', authenticateToken, (req, res) => {
       newWeight = 0;
     }
 
+    const gramsUsed = Math.round((weightBefore - newWeight) * 100) / 100;
     const isArchived = newWeight === 0;
 
     const query = `
-            UPDATE filaments 
+            UPDATE filaments
             SET weight_remaining = ?, is_archived = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ? AND user_id = ?
         `;
@@ -831,6 +857,18 @@ app.post('/api/filaments/:id/use', authenticateToken, (req, res) => {
       if (err) {
         return res.status(500).json({ error: err.message });
       }
+
+      // Log to deduction history
+      if (gramsUsed > 0) {
+        db.run(
+          `INSERT INTO deduction_history (filament_id, grams_used, weight_before, weight_after, source) VALUES (?, ?, ?, ?, 'manual')`,
+          [id, gramsUsed, weightBefore, newWeight],
+          (err) => {
+            if (err) console.error('Error logging deduction history:', err.message);
+          }
+        );
+      }
+
       res.json({ message: 'Filament usage updated successfully' });
     });
   });
@@ -1183,7 +1221,7 @@ function normalizeHexColor(color) {
 
 // Deduct filament by brand + type + color (multi-strategy matching)
 app.post('/api/filaments/deduct', authenticateApiKey, (req, res) => {
-  const { brand, type, color, grams_used } = req.body;
+  const { brand, type, color, grams_used, print_name } = req.body;
 
   if (!brand || !type || !color || !grams_used) {
     return res.status(400).json({ error: 'brand, type, color, and grams_used are required' });
@@ -1263,6 +1301,7 @@ app.post('/api/filaments/deduct', authenticateApiKey, (req, res) => {
   `;
 
   const deductFromFilament = (filament, matchedBy) => {
+    const weightBefore = filament.weight_remaining;
     let newWeight = Math.round((filament.weight_remaining - grams_used) * 100) / 100;
     if (newWeight < 0) newWeight = 0;
     const isArchived = newWeight === 0 ? 1 : 0;
@@ -1277,6 +1316,15 @@ app.post('/api/filaments/deduct', authenticateApiKey, (req, res) => {
       if (err) {
         return res.status(500).json({ error: err.message });
       }
+
+      // Log to deduction history
+      db.run(
+        `INSERT INTO deduction_history (filament_id, grams_used, weight_before, weight_after, source, matched_by, print_name) VALUES (?, ?, ?, ?, 'api_key', ?, ?)`,
+        [filament.id, grams_used, weightBefore, newWeight, matchedBy, print_name || null],
+        (err) => {
+          if (err) console.error('Error logging deduction history:', err.message);
+        }
+      );
 
       console.log(`[API-KEY] Deducted ${grams_used}g from filament #${filament.id} (${filament.brand} ${filament.type} ${filament.color}) [matched_by: ${matchedBy}]: ${filament.weight_remaining}g -> ${newWeight}g${isArchived ? ' [ARCHIVED]' : ''}`);
 
@@ -1358,7 +1406,7 @@ app.post('/api/filaments/deduct', authenticateApiKey, (req, res) => {
 
 // Deduct filament by ID
 app.post('/api/filaments/deduct-by-id', authenticateApiKey, (req, res) => {
-  const { filament_id, grams_used } = req.body;
+  const { filament_id, grams_used, print_name } = req.body;
 
   if (!filament_id || !grams_used) {
     return res.status(400).json({ error: 'filament_id and grams_used are required' });
@@ -1377,6 +1425,7 @@ app.post('/api/filaments/deduct-by-id', authenticateApiKey, (req, res) => {
       return res.status(404).json({ error: 'Filament not found or already archived' });
     }
 
+    const weightBefore = filament.weight_remaining;
     let newWeight = filament.weight_remaining - grams_used;
     if (newWeight < 0) newWeight = 0;
     const isArchived = newWeight === 0 ? 1 : 0;
@@ -1392,6 +1441,15 @@ app.post('/api/filaments/deduct-by-id', authenticateApiKey, (req, res) => {
         return res.status(500).json({ error: err.message });
       }
 
+      // Log to deduction history
+      db.run(
+        `INSERT INTO deduction_history (filament_id, grams_used, weight_before, weight_after, source, matched_by, print_name) VALUES (?, ?, ?, ?, 'api_key', 'direct_id', ?)`,
+        [filament.id, grams_used, weightBefore, newWeight, print_name || null],
+        (err) => {
+          if (err) console.error('Error logging deduction history:', err.message);
+        }
+      );
+
       console.log(`[API-KEY] Deducted ${grams_used}g from filament #${filament.id} by ID: ${filament.weight_remaining}g -> ${newWeight}g${isArchived ? ' [ARCHIVED]' : ''}`);
 
       res.json({
@@ -1406,6 +1464,101 @@ app.post('/api/filaments/deduct-by-id', authenticateApiKey, (req, res) => {
           weight_remaining: newWeight,
           archived: !!isArchived
         }
+      });
+    });
+  });
+});
+
+// ==================== Deduction History Endpoints ====================
+
+// Get deduction history (JWT auth)
+app.get('/api/deduction-history', authenticateToken, (req, res) => {
+  const { filament_id, limit, offset } = req.query;
+  const queryLimit = parseInt(limit) || 50;
+  const queryOffset = parseInt(offset) || 0;
+
+  let query = `
+    SELECT dh.*, f.brand, f.type, f.color, f.color_hex
+    FROM deduction_history dh
+    LEFT JOIN filaments f ON dh.filament_id = f.id
+  `;
+  let countQuery = `SELECT COUNT(*) as total FROM deduction_history dh LEFT JOIN filaments f ON dh.filament_id = f.id`;
+  const params = [];
+  const countParams = [];
+
+  if (filament_id) {
+    query += ' WHERE dh.filament_id = ? AND f.user_id = ?';
+    countQuery += ' WHERE dh.filament_id = ? AND f.user_id = ?';
+    params.push(filament_id, req.user.userId);
+    countParams.push(filament_id, req.user.userId);
+  } else {
+    query += ' WHERE f.user_id = ?';
+    countQuery += ' WHERE f.user_id = ?';
+    params.push(req.user.userId);
+    countParams.push(req.user.userId);
+  }
+
+  query += ' ORDER BY dh.created_at DESC LIMIT ? OFFSET ?';
+  params.push(queryLimit, queryOffset);
+
+  db.get(countQuery, countParams, (err, countRow) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+
+    db.all(query, params, (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      res.json({
+        history: rows,
+        total: countRow.total,
+        limit: queryLimit,
+        offset: queryOffset
+      });
+    });
+  });
+});
+
+// Get deduction history (API key auth)
+app.get('/api/filaments/deduct-history', authenticateApiKey, (req, res) => {
+  const { filament_id, limit, offset } = req.query;
+  const queryLimit = parseInt(limit) || 50;
+  const queryOffset = parseInt(offset) || 0;
+
+  let query = `
+    SELECT dh.*, f.brand, f.type, f.color, f.color_hex
+    FROM deduction_history dh
+    LEFT JOIN filaments f ON dh.filament_id = f.id
+  `;
+  let countQuery = `SELECT COUNT(*) as total FROM deduction_history dh LEFT JOIN filaments f ON dh.filament_id = f.id`;
+  const params = [];
+  const countParams = [];
+
+  if (filament_id) {
+    query += ' WHERE dh.filament_id = ?';
+    countQuery += ' WHERE dh.filament_id = ?';
+    params.push(filament_id);
+    countParams.push(filament_id);
+  }
+
+  query += ' ORDER BY dh.created_at DESC LIMIT ? OFFSET ?';
+  params.push(queryLimit, queryOffset);
+
+  db.get(countQuery, countParams, (err, countRow) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+
+    db.all(query, params, (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      res.json({
+        history: rows,
+        total: countRow.total,
+        limit: queryLimit,
+        offset: queryOffset
       });
     });
   });

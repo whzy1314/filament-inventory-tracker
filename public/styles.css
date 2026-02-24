@@ -2546,6 +2546,243 @@ select::-ms-expand {
     }
 }
 
+/* ==================== Deduction History ==================== */
+
+.history-header {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 15px;
+}
+
+.history-filter select {
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    font-size: 0.9rem;
+    min-width: 200px;
+}
+
+.history-filter select option {
+    background: #1a1a2e;
+    color: white;
+}
+
+.history-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.history-entry {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 14px 16px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: background 0.2s;
+}
+
+.history-entry:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.history-entry-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.history-entry-filament {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.history-entry-filament .color-indicator {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+.history-filament-name {
+    font-weight: 600;
+    color: white;
+    font-size: 0.95rem;
+}
+
+.history-color-name {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.85rem;
+}
+
+.history-source-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+}
+
+.source-auto {
+    background: rgba(0, 200, 83, 0.2);
+    color: #69f0ae;
+    border: 1px solid rgba(0, 200, 83, 0.3);
+}
+
+.source-manual {
+    background: rgba(33, 150, 243, 0.2);
+    color: #82b1ff;
+    border: 1px solid rgba(33, 150, 243, 0.3);
+}
+
+.source-other {
+    background: rgba(255, 193, 7, 0.2);
+    color: #ffd54f;
+    border: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+.history-entry-details {
+    margin-bottom: 6px;
+}
+
+.history-weight-change {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.history-grams-used {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #ff5252;
+}
+
+.history-weight-range {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.85rem;
+}
+
+.history-print-name {
+    margin-top: 6px;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.history-print-name i {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.75rem;
+}
+
+.history-entry-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.history-date {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.history-date i {
+    font-size: 0.7rem;
+}
+
+.history-matched-by {
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 0.75rem;
+    font-style: italic;
+}
+
+.history-loading,
+.history-empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.history-empty i {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+    display: block;
+    opacity: 0.3;
+}
+
+.history-empty p {
+    font-size: 1rem;
+    margin: 0;
+}
+
+.history-empty-inline {
+    text-align: center;
+    color: rgba(255, 255, 255, 0.5);
+    padding: 20px;
+    font-style: italic;
+}
+
+.history-pagination {
+    display: flex;
+    justify-content: center;
+    padding: 15px 0;
+}
+
+@media (max-width: 768px) {
+    .history-filter select {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .history-header {
+        margin-bottom: 10px;
+    }
+
+    .history-entry {
+        padding: 12px;
+    }
+
+    .history-entry-header {
+        gap: 8px;
+    }
+
+    .history-filament-name {
+        font-size: 0.88rem;
+    }
+
+    .history-grams-used {
+        font-size: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .history-entry-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+
+    .history-source-badge {
+        align-self: flex-start;
+    }
+}
+
 /* ==================== Safe Area (notch) Support ==================== */
 @supports (padding: env(safe-area-inset-bottom)) {
     .mobile-bottom-nav {

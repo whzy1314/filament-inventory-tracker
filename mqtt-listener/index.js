@@ -120,13 +120,18 @@ async function fetchLatestTask() {
 async function deductFilament(usage) {
   const url = `${config.tracker.apiUrl}/api/filaments/deduct`;
 
+  const body = {
+    brand: usage.brand,
+    type: usage.type,
+    color: usage.color,
+    grams_used: usage.grams_used,
+  };
+  if (usage.print_name) {
+    body.print_name = usage.print_name;
+  }
+
   try {
-    const response = await axios.post(url, {
-      brand: usage.brand,
-      type: usage.type,
-      color: usage.color,
-      grams_used: usage.grams_used,
-    }, {
+    const response = await axios.post(url, body, {
       headers: {
         'Content-Type': 'application/json',
         'X-API-Key': config.tracker.apiKey,
@@ -188,6 +193,7 @@ async function handlePrintEnd(finalState) {
           color: tray.color, // Send hex code — tracker handles matching
           grams_used: gramsUsed,
           trayIndex: trayIdx,
+          print_name: task.designTitle || task.title || null,
         });
       }
     }
@@ -251,6 +257,7 @@ async function handlePrintEnd(finalState) {
       color: bambuColor,
       grams_used: gramsUsed,
       trayIndex: trayIdx,
+      print_name: task.designTitle || task.title || null,
     };
 
     log('info', `Tray ${trayIdx} (A${trayIdx + 1}): ${gramsUsed}g ${usage.type} (${usage.brand}) — source: slicer estimate`);
