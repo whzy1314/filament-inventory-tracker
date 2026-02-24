@@ -2226,16 +2226,17 @@ img {
         margin-left: 0;
     }
 
-    /* Show sidebar toggle */
+    /* Hide sidebar toggle and topbar on mobile — bottom nav handles navigation */
     .sidebar-toggle {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 36px;
-        height: 36px;
-        border-radius: var(--radius-sm);
-        color: var(--text-primary);
-        font-size: 18px;
+        display: none !important;
+    }
+
+    .topbar {
+        display: none !important;
+    }
+
+    .main-content {
+        padding-top: env(safe-area-inset-top, 0px) !important;
     }
 
     /* Topbar adjustments — fixed on mobile with safe area */
@@ -2259,11 +2260,11 @@ img {
         padding-top: calc(var(--topbar-height) + var(--safe-area-top));
     }
 
-    /* Mobile Dashboard & Settings — fixed viewport fill between topbar and tab bar */
+    /* Mobile Dashboard & Settings — fixed viewport fill, no topbar on mobile */
     .mobile-dashboard-view,
     .mobile-settings-panel {
         position: fixed;
-        top: calc(var(--topbar-height) + var(--safe-area-top));
+        top: env(safe-area-inset-top, 0px);
         left: 0;
         right: 0;
         bottom: var(--mobile-tab-height);
@@ -2271,6 +2272,7 @@ img {
         -webkit-overflow-scrolling: touch;
         background: var(--bg-primary);
         z-index: 100;
+        padding-top: 16px;
     }
 
     /* Content wrapper */
@@ -2323,13 +2325,26 @@ img {
 
     .bottom-nav-item.nav-add-spacer {
         position: relative;
-        background: none;
+        background: none !important;
     }
 
-    .bottom-nav-item.nav-add-spacer i {
-        font-size: 32px;
-        color: var(--accent);
-        background: none;
+    .nav-add-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: var(--accent);
+        color: #fff;
+        font-size: 20px;
+        margin-top: -10px;
+        box-shadow: 0 2px 8px rgba(0, 122, 255, 0.4);
+    }
+
+    .nav-add-btn i {
+        font-size: 20px;
+        color: #fff;
     }
 
     /* Hide desktop tab bar on mobile */
