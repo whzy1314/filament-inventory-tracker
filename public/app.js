@@ -1976,6 +1976,12 @@ function applyFilters() {
     // Apply filters and search
     applyFiltersAndSearch();
 
+    // Auto-close filters panel after apply (mobile/desktop)
+    const filtersPanel = document.getElementById('filtersPanel');
+    if (filtersPanel) filtersPanel.style.display = 'none';
+    if (filterBtn) filterBtn.classList.remove('filter-active');
+    if (mobileFilterBtn) mobileFilterBtn.classList.remove('filter-active');
+
     showToast('Filters applied successfully!', 'success');
 }
 
