@@ -149,6 +149,7 @@ img {
 
 .sidebar-header {
     padding: 20px 20px 16px;
+    padding-top: calc(20px + env(safe-area-inset-top, 0px));
     display: flex;
     align-items: center;
     gap: 12px;
@@ -2322,11 +2323,13 @@ img {
 
     .bottom-nav-item.nav-add-spacer {
         position: relative;
+        background: none;
     }
 
     .bottom-nav-item.nav-add-spacer i {
-        font-size: 28px;
+        font-size: 32px;
         color: var(--accent);
+        background: none;
     }
 
     /* Hide desktop tab bar on mobile */
