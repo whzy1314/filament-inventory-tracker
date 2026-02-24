@@ -2613,11 +2613,10 @@ async function renderMobileDashboard() {
     if (dashWeight) dashWeight.textContent = `${formatWeight(totalWeight)}g`;
     if (dashBrands) dashBrands.textContent = brandsCount;
 
-    // Low stock alerts (under 100g) across active + used
+    // Low stock alerts (under 100g) — active inventory only
     const lowStockEl = document.getElementById('dashLowStock');
     if (lowStockEl) {
-        const allFilaments = [...activeFilaments, ...usedFilaments];
-        const lowStock = allFilaments
+        const lowStock = activeFilaments
             .filter(f => (f.weight_remaining || 0) < 100)
             .sort((a, b) => (a.weight_remaining || 0) - (b.weight_remaining || 0));
 
@@ -2626,12 +2625,11 @@ async function renderMobileDashboard() {
         } else {
             lowStockEl.innerHTML = lowStock.map(f => {
                 const colorHex = f.color_hex || getColorHexSync(f.color);
-                const status = f.is_archived ? 'Used up' : 'In stock';
                 return `<div class="mobile-dash-item">
                     <span class="mobile-dash-item-dot" style="background-color: ${colorHex};"></span>
                     <div class="mobile-dash-item-info">
                         <span class="mobile-dash-item-title">${escapeHtml(f.brand)} ${escapeHtml(f.type)}</span>
-                        <span class="mobile-dash-item-subtitle">${escapeHtml(f.color || 'Unknown')} · ${status}</span>
+                        <span class="mobile-dash-item-subtitle">${escapeHtml(f.color || 'Unknown')}</span>
                     </div>
                     <span class="mobile-dash-item-value">${formatWeight(f.weight_remaining)}g</span>
                 </div>`;
