@@ -65,7 +65,6 @@ async function checkAuthAndLoadUser() {
     try {
         const response = await fetch('/api/auth/check');
         if (!response.ok) {
-            // Not authenticated, redirect to login
             window.location.href = '/login';
             return;
         }
@@ -73,6 +72,7 @@ async function checkAuthAndLoadUser() {
         const data = await response.json();
         currentUser = data.user;
 
+        // Legacy elements (hidden but kept for compat)
         const usernameDisplay = document.getElementById('usernameDisplay');
         const roleBadge = document.getElementById('roleBadge');
         const adminPanelBtn = document.getElementById('adminPanelBtn');
@@ -80,18 +80,32 @@ async function checkAuthAndLoadUser() {
         if (usernameDisplay && data.user) {
             usernameDisplay.textContent = data.user.username;
         }
-
-        // Show role badge
         if (roleBadge && data.user) {
             roleBadge.textContent = data.user.role;
             roleBadge.className = `role-badge ${data.user.role}`;
             roleBadge.style.display = 'inline-block';
         }
-
-        // Show admin panel button if user is admin
         if (adminPanelBtn && data.user && data.user.role === 'admin') {
             adminPanelBtn.style.display = 'flex';
             adminPanelBtn.addEventListener('click', showAdminModal);
+        }
+
+        // Sidebar user info
+        if (data.user) {
+            const sidebarUsername = document.getElementById('sidebarUsername');
+            const sidebarRole = document.getElementById('sidebarRole');
+            const sidebarAvatar = document.getElementById('sidebarAvatar');
+            const sidebarAdminBtn = document.getElementById('sidebarAdminBtn');
+
+            if (sidebarUsername) sidebarUsername.textContent = data.user.username;
+            if (sidebarRole) sidebarRole.textContent = data.user.role;
+            if (sidebarAvatar) sidebarAvatar.textContent = data.user.username.charAt(0).toUpperCase();
+
+            // Show admin button in sidebar
+            if (sidebarAdminBtn && data.user.role === 'admin') {
+                sidebarAdminBtn.style.display = 'flex';
+                sidebarAdminBtn.addEventListener('click', showAdminModal);
+            }
         }
     } catch (error) {
         console.error('Auth check failed:', error);
@@ -267,86 +281,86 @@ function renderUsedFilaments(filamentsToRender) {
 // Create filament card HTML
 function createFilamentCard(filament, isUsed = false) {
     const weightPercentage = Math.min((filament.weight_remaining / 1000) * 100, 100);
-    const colorStyle = getColorStyleSync(filament.color);
+
+    // Get color hex for swatch
+    const colorHex = filament.color_hex || getColorHexSync(filament.color);
+    const isLightColor = colorHex && (colorHex.toLowerCase() === '#ffffff' || colorHex.toLowerCase() === '#f5f5dc' || colorHex.toLowerCase() === '#f0f8ff' || colorHex === 'rgba(255,255,255,0.3)');
 
     // Fix date display issue - parse date correctly to avoid timezone offset
-    let purchaseDate = 'Not specified';
+    let purchaseDate = '';
     if (filament.purchase_date) {
-        // Split the date string and create date with local timezone
         const dateParts = filament.purchase_date.split('-');
         if (dateParts.length === 3) {
             const year = parseInt(dateParts[0]);
-            const month = parseInt(dateParts[1]) - 1; // Month is 0-indexed
+            const month = parseInt(dateParts[1]) - 1;
             const day = parseInt(dateParts[2]);
             const localDate = new Date(year, month, day);
             purchaseDate = localDate.toLocaleDateString();
         } else {
-            // Fallback to original method if date format is unexpected
             purchaseDate = new Date(filament.purchase_date).toLocaleDateString();
         }
     }
 
-    const dateLabel = isUsed ? 'Used Up Date' : 'Add Date';
     const dateValue = isUsed ? new Date(filament.updated_at).toLocaleDateString() : purchaseDate;
+
+    // Weight bar color class
+    let barClass = '';
+    if (weightPercentage < 10) barClass = 'critical';
+    else if (weightPercentage < 25) barClass = 'low';
 
     return `
         <div class="filament-card">
-            <div class="filament-header">
-                <div class="filament-title">
+            <div class="filament-card-header">
+                <div class="filament-color-swatch" style="background-color: ${colorHex || '#ccc'};${isLightColor ? ' border-color: #C6C6C8;' : ''}"></div>
+                <div class="filament-card-info">
                     <div class="filament-brand">${escapeHtml(filament.brand)}</div>
-                    <div class="filament-type">${escapeHtml(filament.type)}</div>
-                </div>
-                <div class="filament-actions">
-                    ${!isUsed ? `
-                    <button class="btn btn-primary btn-small" onclick="showUseModal(${filament.id})" title="Use">
-                        <i class="fas fa-play"></i>
-                    </button>
-                    <button class="btn btn-secondary btn-small" onclick="editFilament(${filament.id})" title="Edit">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    ` : ''}
-                    <button class="btn btn-secondary btn-small" onclick="showSpoolHistory(${filament.id})" title="History">
-                        <i class="fas fa-clock-rotate-left"></i>
-                    </button>
-                    <button class="btn btn-danger btn-small" onclick="showDeleteModal(${filament.id})" title="Delete">
-                        <i class="fas fa-trash"></i>
-                    </button>
+                    <span class="filament-type-badge">${escapeHtml(filament.type)}</span>
                 </div>
             </div>
-            
-            <div class="filament-details">
-                <div class="detail-row">
-                    <span class="detail-label">Color:</span>
-                    <span class="detail-value">
-                        ${escapeHtml(filament.color)}
-                        <span class="color-indicator" style="${colorStyle}"></span>
-                    </span>
+            <div class="filament-card-body">
+                <div class="filament-weight-section">
+                    <div class="filament-weight-info">
+                        <span class="filament-weight-value">${formatWeight(filament.weight_remaining)}<span class="filament-weight-unit">g</span></span>
+                        <span class="filament-weight-unit">${escapeHtml(filament.color)}</span>
+                    </div>
+                    <div class="filament-weight-bar">
+                        <div class="filament-weight-bar-fill ${barClass}" style="width: ${weightPercentage}%"></div>
+                    </div>
                 </div>
-                <div class="detail-row">
-                    <span class="detail-label">Spool Type:</span>
-                    <span class="detail-value">${filament.spool_type === 'with_spool' ? 'With Spool' : 'Refill Only'}</span>
+                <div class="filament-meta">
+                    <span class="filament-meta-item"><i class="fas fa-circle-dot"></i> ${filament.spool_type === 'with_spool' ? 'Spool' : 'Refill'}</span>
+                    ${dateValue ? `<span class="filament-meta-item"><i class="far fa-calendar"></i> ${dateValue}</span>` : ''}
                 </div>
-                <div class="detail-row">
-                    <span class="detail-label">Weight:</span>
-                    <span class="detail-value">${formatWeight(filament.weight_remaining)}g</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">${dateLabel}:</span>
-                    <span class="detail-value">${dateValue}</span>
-                </div>
-                
-                <div class="weight-bar">
-                    <div class="weight-fill" style="width: ${weightPercentage}%"></div>
-                </div>
+                ${filament.notes ? `<div class="filament-notes">${escapeHtml(filament.notes)}</div>` : ''}
             </div>
-            
-            ${filament.notes ? `
-                <div class="filament-notes">
-                    "${escapeHtml(filament.notes)}"
-                </div>
-            ` : ''}
+            <div class="filament-card-actions">
+                ${!isUsed ? `
+                <button onclick="showUseModal(${filament.id})"><i class="fas fa-minus-circle"></i> Use</button>
+                <button onclick="editFilament(${filament.id})"><i class="fas fa-pencil"></i> Edit</button>
+                ` : ''}
+                <button onclick="showSpoolHistory(${filament.id})"><i class="fas fa-clock-rotate-left"></i> History</button>
+                <button class="action-danger" onclick="showDeleteModal(${filament.id})"><i class="fas fa-trash"></i> Delete</button>
+            </div>
         </div>
     `;
+}
+
+// Get color hex value for a color name
+function getColorHexSync(color) {
+    const colorMap = {
+        'red': '#ff0000', 'blue': '#0000ff', 'green': '#008000', 'yellow': '#ffff00',
+        'orange': '#ffa500', 'purple': '#800080', 'pink': '#ffc0cb', 'black': '#000000',
+        'white': '#ffffff', 'gray': '#808080', 'grey': '#808080', 'brown': '#a52a2a',
+        'silver': '#c0c0c0', 'gold': '#ffd700', 'transparent': 'rgba(255,255,255,0.3)',
+        'clear': 'rgba(255,255,255,0.3)', 'natural': '#f5f5dc', 'glow in dark': '#90ee90',
+        'wood': '#deb887', 'marble': '#f0f8ff', 'carbon fiber': '#36454f'
+    };
+    const normalized = (color || '').toLowerCase().trim();
+    if (colorMap[normalized]) return colorMap[normalized];
+    // Check custom colors cache
+    const custom = customColorsCache.find(c => c.name.toLowerCase() === normalized);
+    if (custom && custom.hex_code) return custom.hex_code;
+    return '#ccc';
 }
 
 // Get color style for color indicator
@@ -425,24 +439,24 @@ async function showAddModal() {
 }
 
 function showModal() {
-    filamentModal.classList.add('show');
+    filamentModal.classList.add('active');
     document.body.style.overflow = 'hidden';
 }
 
 function closeModal() {
-    filamentModal.classList.remove('show');
+    filamentModal.classList.remove('active');
     document.body.style.overflow = '';
     resetForm();
 }
 
 function showUseModal(id) {
     useFilamentId = id;
-    useFilamentModal.classList.add('show');
+    useFilamentModal.classList.add('active');
     document.body.style.overflow = 'hidden';
 }
 
 function closeUseModal() {
-    useFilamentModal.classList.remove('show');
+    useFilamentModal.classList.remove('active');
     document.body.style.overflow = '';
     useFilamentForm.reset();
     useFilamentId = null;
@@ -560,12 +574,12 @@ function showDeleteModal(id) {
         `;
     }
 
-    deleteModal.classList.add('show');
+    deleteModal.classList.add('active');
     document.body.style.overflow = 'hidden';
 }
 
 function closeDeleteModal() {
-    deleteModal.classList.remove('show');
+    deleteModal.classList.remove('active');
     document.body.style.overflow = '';
     deleteFilamentId = null;
 }
@@ -613,13 +627,13 @@ function escapeHtml(text) {
 document.addEventListener('keydown', (e) => {
     // Escape key to close modals
     if (e.key === 'Escape') {
-        if (filamentModal.classList.contains('show')) {
+        if (filamentModal.classList.contains('active')) {
             closeModal();
         }
-        if (deleteModal.classList.contains('show')) {
+        if (deleteModal.classList.contains('active')) {
             closeDeleteModal();
         }
-        if (useFilamentModal.classList.contains('show')) {
+        if (useFilamentModal.classList.contains('active')) {
             closeUseModal();
         }
     }
@@ -1238,6 +1252,7 @@ function showManageCustomsModal() {
     // Create modal HTML
     const modalHTML = `
         <div class="modal" id="manageCustomsModal">
+            <div class="modal-overlay" onclick="closeManageCustomsModal()"></div>
             <div class="modal-content" style="max-width: 800px;">
                 <div class="modal-header">
                     <h2>Manage Custom Brands, Colors & Types</h2>
@@ -1311,14 +1326,14 @@ function showManageCustomsModal() {
     }
 
     loadCustomManagementData();
-    document.getElementById('manageCustomsModal').classList.add('show');
+    document.getElementById('manageCustomsModal').classList.add('active');
     document.body.style.overflow = 'hidden';
 }
 
 function closeManageCustomsModal() {
     const modal = document.getElementById('manageCustomsModal');
     if (modal) {
-        modal.classList.remove('show');
+        modal.classList.remove('active');
         document.body.style.overflow = '';
     }
 }
@@ -1568,6 +1583,7 @@ function editCustomColorInPanel(colorName, hexCode) {
 function showEditModal(itemType, currentName, currentHex = '', currentExtra = '') {
     const modalHTML = `
         <div class="modal" id="editCustomModal">
+            <div class="modal-overlay" onclick="closeEditModal()"></div>
             <div class="modal-content" style="max-width: 500px;">
                 <div class="modal-header">
                     <h2>Edit Custom ${itemType.charAt(0).toUpperCase() + itemType.slice(1)}</h2>
@@ -1629,7 +1645,7 @@ function showEditModal(itemType, currentName, currentHex = '', currentExtra = ''
     }
 
     // Show modal
-    document.getElementById('editCustomModal').classList.add('show');
+    document.getElementById('editCustomModal').classList.add('active');
     document.body.style.overflow = 'hidden';
 
     // Focus on name input
@@ -1641,7 +1657,7 @@ function showEditModal(itemType, currentName, currentHex = '', currentExtra = ''
 function closeEditModal() {
     const modal = document.getElementById('editCustomModal');
     if (modal) {
-        modal.classList.remove('show');
+        modal.classList.remove('active');
         document.body.style.overflow = '';
         setTimeout(() => modal.remove(), 300);
     }
@@ -1707,6 +1723,7 @@ async function saveEditedItem(itemType, originalName) {
 function showReferencingFilamentsModal(itemType, itemName, referencingFilaments) {
     const modalHTML = `
         <div class="modal" id="referencingFilamentsModal">
+            <div class="modal-overlay" onclick="closeReferencingFilamentsModal()"></div>
             <div class="modal-content" style="max-width: 600px;">
                 <div class="modal-header">
                     <h2><i class="fas fa-exclamation-triangle" style="color: #dc3545;"></i> Cannot Delete Custom ${itemType.charAt(0).toUpperCase() + itemType.slice(1)}</h2>
@@ -1760,7 +1777,7 @@ function showReferencingFilamentsModal(itemType, itemName, referencingFilaments)
     document.body.insertAdjacentHTML('beforeend', modalHTML);
 
     // Show modal
-    document.getElementById('referencingFilamentsModal').classList.add('show');
+    document.getElementById('referencingFilamentsModal').classList.add('active');
     document.body.style.overflow = 'hidden';
 }
 
@@ -1768,7 +1785,7 @@ function showReferencingFilamentsModal(itemType, itemName, referencingFilaments)
 function closeReferencingFilamentsModal() {
     const modal = document.getElementById('referencingFilamentsModal');
     if (modal) {
-        modal.classList.remove('show');
+        modal.classList.remove('active');
         document.body.style.overflow = '';
         setTimeout(() => modal.remove(), 300);
     }
@@ -1781,6 +1798,7 @@ let pendingDeleteCallback = null;
 function showCustomDeleteConfirmModal(itemType, itemName, onConfirm) {
     const modalHTML = `
         <div class="modal" id="customDeleteConfirmModal">
+            <div class="modal-overlay" onclick="closeCustomDeleteConfirmModal()"></div>
             <div class="modal-content" style="max-width: 450px;">
                 <div class="modal-header">
                     <h2><i class="fas fa-exclamation-triangle" style="color: #dc3545;"></i> Confirm Deletion</h2>
@@ -1832,7 +1850,7 @@ function showCustomDeleteConfirmModal(itemType, itemName, onConfirm) {
     document.body.insertAdjacentHTML('beforeend', modalHTML);
 
     // Show modal
-    document.getElementById('customDeleteConfirmModal').classList.add('show');
+    document.getElementById('customDeleteConfirmModal').classList.add('active');
     document.body.style.overflow = 'hidden';
 }
 
@@ -1840,7 +1858,7 @@ function showCustomDeleteConfirmModal(itemType, itemName, onConfirm) {
 function closeCustomDeleteConfirmModal() {
     const modal = document.getElementById('customDeleteConfirmModal');
     if (modal) {
-        modal.classList.remove('show');
+        modal.classList.remove('active');
         document.body.style.overflow = '';
         setTimeout(() => modal.remove(), 300);
     }
@@ -2120,7 +2138,7 @@ async function showAdminModal() {
     const adminModal = document.getElementById('adminModal');
     if (!adminModal) return;
 
-    adminModal.classList.add('show');
+    adminModal.classList.add('active');
     document.body.style.overflow = 'hidden';
 
     await loadUsers();
@@ -2130,7 +2148,7 @@ async function showAdminModal() {
 function closeAdminModal() {
     const adminModal = document.getElementById('adminModal');
     if (adminModal) {
-        adminModal.classList.remove('show');
+        adminModal.classList.remove('active');
         document.body.style.overflow = '';
     }
 }
@@ -2240,7 +2258,7 @@ function showChangePasswordModal(userId, username) {
     userIdInput.value = userId;
 
     // Show modal
-    modal.classList.add('show');
+    modal.classList.add('active');
     document.body.style.overflow = 'hidden';
 
     // Focus on password field
@@ -2253,7 +2271,7 @@ function showChangePasswordModal(userId, username) {
 function closeChangePasswordModal() {
     const modal = document.getElementById('changePasswordModal');
     if (modal) {
-        modal.classList.remove('show');
+        modal.classList.remove('active');
         document.body.style.overflow = '';
     }
 }
@@ -2311,7 +2329,7 @@ function showDeleteUserModal(userId, username) {
     usernameDisplay.textContent = username;
     userIdInput.value = userId;
 
-    modal.classList.add('show');
+    modal.classList.add('active');
     document.body.style.overflow = 'hidden';
 }
 
@@ -2319,7 +2337,7 @@ function showDeleteUserModal(userId, username) {
 function closeDeleteUserModal() {
     const modal = document.getElementById('deleteUserModal');
     if (modal) {
-        modal.classList.remove('show');
+        modal.classList.remove('active');
         document.body.style.overflow = '';
     }
 }
@@ -2587,19 +2605,17 @@ async function renderMobileDashboard() {
             .sort((a, b) => (a.weight_remaining || 0) - (b.weight_remaining || 0));
 
         if (lowStock.length === 0) {
-            lowStockEl.innerHTML = '<div class="mobile-dash-empty"><i class="fas fa-check-circle"></i> All spools above 100g</div>';
+            lowStockEl.innerHTML = '<div class="mobile-dash-empty">All spools above 100g</div>';
         } else {
             lowStockEl.innerHTML = lowStock.map(f => {
-                const pct = f.original_weight ? Math.round(((f.weight_remaining || 0) / f.original_weight) * 100) : 0;
-                const colorStyle = f.color_hex
-                    ? `background-color: ${f.color_hex};${f.color_hex.toLowerCase() === '#ffffff' ? ' border: 1px solid #ccc;' : ''}`
-                    : 'background-color: #ccc;';
-                return `<div class="mobile-dash-low-stock-item">
-                    <span class="color-indicator" style="${colorStyle}"></span>
-                    <div class="mobile-dash-low-stock-info">
-                        <span class="mobile-dash-low-stock-name">${escapeHtml(f.brand)} ${escapeHtml(f.type)}</span>
-                        <span class="mobile-dash-low-stock-detail">${escapeHtml(f.color || 'Unknown')} &middot; ${formatWeight(f.weight_remaining)}g left (${pct}%)</span>
+                const colorHex = f.color_hex || getColorHexSync(f.color);
+                return `<div class="mobile-dash-item">
+                    <span class="mobile-dash-item-dot" style="background-color: ${colorHex};"></span>
+                    <div class="mobile-dash-item-info">
+                        <span class="mobile-dash-item-title">${escapeHtml(f.brand)} ${escapeHtml(f.type)}</span>
+                        <span class="mobile-dash-item-subtitle">${escapeHtml(f.color || 'Unknown')}</span>
                     </div>
+                    <span class="mobile-dash-item-value">${formatWeight(f.weight_remaining)}g</span>
                 </div>`;
             }).join('');
         }
@@ -2614,23 +2630,22 @@ async function renderMobileDashboard() {
             const data = await response.json();
 
             if (data.history.length === 0) {
-                recentEl.innerHTML = '<div class="mobile-dash-empty"><i class="fas fa-clock-rotate-left"></i> No deductions yet</div>';
+                recentEl.innerHTML = '<div class="mobile-dash-empty">No deductions yet</div>';
             } else {
                 recentEl.innerHTML = data.history.map(entry => {
                     const date = new Date(entry.created_at + 'Z');
                     const dateStr = date.toLocaleDateString();
-                    const colorStyle = entry.color_hex
-                        ? `background-color: ${entry.color_hex};${entry.color_hex.toLowerCase() === '#ffffff' ? ' border: 1px solid #ccc;' : ''}`
-                        : 'background-color: #ccc;';
+                    const colorHex = entry.color_hex || getColorHexSync(entry.color || 'Unknown');
                     const filamentName = entry.brand && entry.type
                         ? `${escapeHtml(entry.brand)} ${escapeHtml(entry.type)}`
                         : 'Deleted filament';
-                    return `<div class="mobile-dash-deduction-item">
-                        <span class="color-indicator" style="${colorStyle}"></span>
-                        <div class="mobile-dash-deduction-info">
-                            <span class="mobile-dash-deduction-name">${filamentName}</span>
-                            <span class="mobile-dash-deduction-detail">-${formatWeight(entry.grams_used)}g &middot; ${dateStr}${entry.print_name ? ' &middot; ' + escapeHtml(entry.print_name) : ''}</span>
+                    return `<div class="mobile-dash-item">
+                        <span class="mobile-dash-item-dot" style="background-color: ${colorHex};"></span>
+                        <div class="mobile-dash-item-info">
+                            <span class="mobile-dash-item-title">${filamentName}</span>
+                            <span class="mobile-dash-item-subtitle">${dateStr}${entry.print_name ? ' &middot; ' + escapeHtml(entry.print_name) : ''}</span>
                         </div>
+                        <span class="mobile-dash-item-value">-${formatWeight(entry.grams_used)}g</span>
                     </div>`;
                 }).join('');
             }
@@ -2648,7 +2663,7 @@ function initPullToRefresh() {
     const threshold = 80;
 
     document.addEventListener('touchstart', (e) => {
-        if (window.scrollY === 0 && !document.querySelector('.modal.show')) {
+        if (window.scrollY === 0 && !document.querySelector('.modal.active')) {
             startY = e.touches[0].clientY;
             pulling = true;
         }
@@ -2739,7 +2754,7 @@ function initSwipeToDismiss() {
                 content.style.opacity = '0';
                 setTimeout(() => {
                     // Find and call the appropriate close function
-                    modal.classList.remove('show');
+                    modal.classList.remove('active');
                     document.body.style.overflow = '';
                     content.style.transform = '';
                     content.style.opacity = '';
@@ -2829,13 +2844,11 @@ function createHistoryEntry(entry) {
     const dateStr = date.toLocaleDateString();
     const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    const colorName = entry.color || 'Unknown';
-    const colorStyle = entry.color_hex
-        ? `background-color: ${entry.color_hex};${entry.color_hex.toLowerCase() === '#ffffff' ? ' border-color: #999;' : ''}`
-        : (entry.color ? getColorStyleSync(entry.color) : 'background-color: #ccc;');
+    const colorHex = entry.color_hex || getColorHexSync(entry.color || 'Unknown');
+    const isLightColor = colorHex && (colorHex.toLowerCase() === '#ffffff' || colorHex === 'rgba(255,255,255,0.3)');
 
-    const sourceBadgeClass = entry.source === 'manual' ? 'source-manual' : (entry.source === 'api_key' ? 'source-auto' : 'source-other');
-    const sourceLabel = entry.source === 'manual' ? 'Manual' : (entry.source === 'api_key' ? 'Auto' : entry.source);
+    const sourceBadgeClass = entry.source === 'manual' ? 'manual' : (entry.source === 'api_key' ? 'api_key' : 'other');
+    const sourceLabel = entry.source === 'manual' ? 'Manual' : (entry.source === 'api_key' ? 'Auto' : (entry.source || 'Other'));
 
     const filamentName = entry.brand && entry.type
         ? `${escapeHtml(entry.brand)} ${escapeHtml(entry.type)}`
@@ -2844,23 +2857,19 @@ function createHistoryEntry(entry) {
     return `
         <div class="history-entry">
             <div class="history-entry-header">
-                <div class="history-entry-filament">
-                    <span class="color-indicator" style="${colorStyle}"></span>
+                <div class="history-filament-info">
+                    <span class="history-color-dot" style="background-color: ${colorHex};${isLightColor ? ' border-color: #C6C6C8;' : ''}"></span>
                     <span class="history-filament-name">${filamentName}</span>
-                    <span class="history-color-name">${escapeHtml(colorName)}</span>
                 </div>
                 <span class="history-source-badge ${sourceBadgeClass}">${sourceLabel}</span>
             </div>
-            <div class="history-entry-details">
-                <div class="history-weight-change">
-                    <span class="history-grams-used">-${formatWeight(entry.grams_used)}g</span>
-                    <span class="history-weight-range">${formatWeight(entry.weight_before)}g → ${formatWeight(entry.weight_after)}g</span>
-                </div>
-                ${entry.print_name ? `<div class="history-print-name"><i class="fas fa-cube"></i> ${escapeHtml(entry.print_name)}</div>` : ''}
+            <div class="history-entry-body">
+                <span class="history-weight-change">-${formatWeight(entry.grams_used)}g</span>
+                <span class="history-weight-detail">${formatWeight(entry.weight_before)}g &rarr; ${formatWeight(entry.weight_after)}g</span>
             </div>
+            ${entry.print_name ? `<div class="history-print-name"><i class="fas fa-cube"></i> ${escapeHtml(entry.print_name)}</div>` : ''}
             <div class="history-entry-footer">
-                <span class="history-date"><i class="fas fa-clock"></i> ${dateStr} ${timeStr}</span>
-                ${entry.matched_by ? `<span class="history-matched-by">matched: ${escapeHtml(entry.matched_by)}</span>` : ''}
+                <i class="far fa-clock"></i> ${dateStr} ${timeStr}${entry.matched_by ? ` &middot; ${escapeHtml(entry.matched_by)}` : ''}
             </div>
         </div>
     `;
@@ -2895,7 +2904,7 @@ async function showSpoolHistory(filamentId) {
     const timeline = document.getElementById('spoolHistoryTimeline');
     const loadingEl = document.getElementById('spoolHistoryLoading');
 
-    modal.classList.add('show');
+    modal.classList.add('active');
     document.body.style.overflow = 'hidden';
     timeline.innerHTML = '';
     loadingEl.style.display = 'block';
@@ -2922,7 +2931,7 @@ async function showSpoolHistory(filamentId) {
 
 function closeSpoolHistoryModal() {
     const modal = document.getElementById('spoolHistoryModal');
-    modal.classList.remove('show');
+    modal.classList.remove('active');
     document.body.style.overflow = '';
 }
 
@@ -2930,6 +2939,7 @@ function closeSpoolHistoryModal() {
 document.addEventListener('DOMContentLoaded', () => {
     initMobileNav();
     initPullToRefresh();
+    initSidebarNav();
 
     // Delay swipe init until modals exist
     setTimeout(initSwipeToDismiss, 1000);
@@ -2951,3 +2961,101 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+// --- Sidebar Navigation ---
+function initSidebarNav() {
+    const sidebar = document.getElementById('sidebar');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const topbarTitle = document.getElementById('topbarTitle');
+
+    // Sidebar toggle (mobile)
+    if (sidebarToggle) {
+        sidebarToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('open');
+            if (sidebarOverlay) sidebarOverlay.classList.toggle('active');
+        });
+    }
+
+    // Close sidebar on overlay click
+    if (sidebarOverlay) {
+        sidebarOverlay.addEventListener('click', () => {
+            sidebar.classList.remove('open');
+            sidebarOverlay.classList.remove('active');
+        });
+    }
+
+    // Sidebar nav items
+    const sidebarItems = document.querySelectorAll('.sidebar-item[data-section]');
+    sidebarItems.forEach(item => {
+        item.addEventListener('click', () => {
+            const section = item.dataset.section;
+
+            // Update active state
+            sidebarItems.forEach(i => i.classList.remove('active'));
+            item.classList.add('active');
+
+            // Close sidebar on mobile
+            if (window.innerWidth <= 768) {
+                sidebar.classList.remove('open');
+                if (sidebarOverlay) sidebarOverlay.classList.remove('active');
+            }
+
+            // Switch section via desktop tab mechanism
+            const tabMap = {
+                'inventory': 'inventoryTab',
+                'used': 'usedTab',
+                'history': 'historyTab'
+            };
+
+            const tabName = tabMap[section];
+            if (tabName) {
+                // Hide all tab contents
+                const tabContents = document.getElementsByClassName('tab-content');
+                for (let i = 0; i < tabContents.length; i++) {
+                    tabContents[i].style.display = 'none';
+                }
+                // Show selected tab
+                const targetTab = document.getElementById(tabName);
+                if (targetTab) targetTab.style.display = 'block';
+
+                // Update tab-link active states (desktop segmented control)
+                const tabLinks = document.getElementsByClassName('tab-link');
+                for (let i = 0; i < tabLinks.length; i++) {
+                    tabLinks[i].classList.remove('active');
+                    if (tabLinks[i].getAttribute('onclick') && tabLinks[i].getAttribute('onclick').includes(tabName)) {
+                        tabLinks[i].classList.add('active');
+                    }
+                }
+
+                // Load history if needed
+                if (section === 'history') {
+                    loadDeductionHistory();
+                }
+
+                // Update topbar title
+                const titles = { 'inventory': 'Inventory', 'used': 'Used Up', 'history': 'History' };
+                if (topbarTitle) topbarTitle.textContent = titles[section] || 'Inventory';
+            }
+        });
+    });
+}
+
+// Sync sidebar active state when desktop tabs are clicked
+// Monkey-patch openTab by redefining it to also update sidebar
+(function() {
+    const origOpenTab = openTab;
+    window.openTab = function(evt, tabName) {
+        origOpenTab(evt, tabName);
+        const sectionMap = { 'inventoryTab': 'inventory', 'usedTab': 'used', 'historyTab': 'history' };
+        const section = sectionMap[tabName];
+        if (section) {
+            document.querySelectorAll('.sidebar-item[data-section]').forEach(item => {
+                item.classList.toggle('active', item.dataset.section === section);
+            });
+            const topbarTitle = document.getElementById('topbarTitle');
+            const titles = { 'inventory': 'Inventory', 'used': 'Used Up', 'history': 'History' };
+            if (topbarTitle) topbarTitle.textContent = titles[section] || 'Inventory';
+        }
+    };
+})();

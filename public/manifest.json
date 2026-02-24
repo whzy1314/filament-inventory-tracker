@@ -4,8 +4,8 @@
   "description": "Manage your 3D printing filament inventory",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#1a1a2e",
-  "theme_color": "#1a1a2e",
+  "background_color": "#F2F2F7",
+  "theme_color": "#F2F2F7",
   "orientation": "any",
   "scope": "/",
   "icons": [

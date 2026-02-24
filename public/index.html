@@ -3,14 +3,14 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Filament Tracker - 3D Printing Inventory</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Filament Tracker</title>
     <link rel="icon" type="image/svg+xml" href="logo.svg">
     <link rel="apple-touch-icon" href="/icons/icon-192.svg">
     <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#1a1a2e">
+    <meta name="theme-color" content="#F2F2F7">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Filament Tracker">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="format-detection" content="telephone=no">
@@ -41,196 +41,257 @@
         </div>
     </div>
 
-    <div class="container">
-        <header class="header">
-            <div class="header-main">
-                <h1><img src="logo.svg" alt="Filament Tracker Logo" class="header-logo"> Filament Tracker</h1>
-                <p>Manage your 3D printing filament inventory</p>
+    <!-- Sidebar overlay (mobile) -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <div class="app-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <img src="logo.svg" alt="Filament Tracker" class="app-icon">
+                <span class="app-title">Filament Tracker</span>
             </div>
-            <div class="user-menu" id="userMenu">
-                <div class="user-info" id="userInfo">
-                    <i class="fas fa-user-circle"></i>
-                    <span id="usernameDisplay">Loading...</span>
-                    <span id="roleBadge" class="role-badge" style="display: none;"></span>
-                </div>
-                <button class="btn btn-admin" id="adminPanelBtn" title="Admin Panel" style="display: none;">
+
+            <nav class="sidebar-nav">
+                <div class="sidebar-section-label">Navigation</div>
+                <button class="sidebar-item active" data-section="inventory" id="sidebarInventory">
+                    <i class="fas fa-cube"></i>
+                    <span>Inventory</span>
+                </button>
+                <button class="sidebar-item" data-section="used" id="sidebarUsed">
+                    <i class="fas fa-archive"></i>
+                    <span>Used Up</span>
+                </button>
+                <button class="sidebar-item" data-section="history" id="sidebarHistory">
+                    <i class="fas fa-clock-rotate-left"></i>
+                    <span>History</span>
+                </button>
+
+                <div class="sidebar-section-label">Manage</div>
+                <button class="sidebar-item" onclick="showManageCustomsModal()">
+                    <i class="fas fa-palette"></i>
+                    <span>Custom Data</span>
+                </button>
+                <button class="sidebar-item" id="sidebarAdminBtn" style="display: none;">
                     <i class="fas fa-users-cog"></i>
-                    <span>Admin</span>
+                    <span>Admin Panel</span>
                 </button>
-                <button class="btn btn-logout" id="logoutBtn" title="Logout">
-                    <i class="fas fa-sign-out-alt"></i>
-                    <span>Logout</span>
-                </button>
-            </div>
-        </header>
+            </nav>
 
-        <div class="controls">
-            <div class="search-container">
-                <input type="text" id="searchInput" placeholder="Search filaments..." class="search-input">
-                <button id="searchBtn" class="btn btn-secondary">
-                    <i class="fas fa-search"></i>
-                </button>
-            </div>
-            <div style="display: flex; gap: 10px;">
-                <button id="filterBtn" class="btn btn-secondary">
-                    <i class="fas fa-filter"></i> Filters
-                </button>
-                <button onclick="showManageCustomsModal()" class="btn btn-secondary">
-                    <i class="fas fa-cog"></i> Manage Custom
-                </button>
-                <button id="addFilamentBtn" class="btn btn-primary">
-                    <i class="fas fa-plus"></i> Add Filament
-                </button>
-            </div>
-        </div>
-
-        <!-- Modern Compact Filters Panel -->
-        <div class="filters-panel" id="filtersPanel" style="display: none;">
-            <div class="filters-header">
-                <h3><i class="fas fa-filter"></i> Filters</h3>
-                <div class="filters-actions">
-                    <button id="clearFiltersBtn" class="btn btn-secondary btn-small">
-                        <i class="fas fa-times"></i> Clear
-                    </button>
-                    <button id="applyFiltersBtn" class="btn btn-primary btn-small">
-                        <i class="fas fa-check"></i> Apply
+            <div class="sidebar-footer">
+                <div class="sidebar-user">
+                    <div class="sidebar-user-avatar" id="sidebarAvatar">?</div>
+                    <div class="sidebar-user-info">
+                        <div class="sidebar-user-name" id="sidebarUsername">Loading...</div>
+                        <div class="sidebar-user-role" id="sidebarRole">user</div>
+                    </div>
+                    <button class="sidebar-logout-btn" id="logoutBtn" title="Logout">
+                        <i class="fas fa-arrow-right-from-bracket"></i>
                     </button>
                 </div>
             </div>
+        </aside>
 
-            <!-- Active Filter Chips -->
-            <div class="active-filters" id="activeFilters" style="display: none;">
-                <!-- Active filter chips will be dynamically inserted here -->
-            </div>
-
-            <div class="filters-content">
-                <div class="filter-group">
-                    <label for="filterBrand">Brand</label>
-                    <select id="filterBrand" multiple>
-                        <option value="">All Brands</option>
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <label for="filterType">Type</label>
-                    <select id="filterType" multiple>
-                        <option value="">All Types</option>
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <label for="filterColor">Color</label>
-                    <select id="filterColor" multiple>
-                        <option value="">All Colors</option>
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <label for="filterSpoolType">Spool</label>
-                    <select id="filterSpoolType" multiple>
-                        <option value="">All Types</option>
-                        <option value="with_spool">With Spool</option>
-                        <option value="refill">Refill Only</option>
-                    </select>
-                </div>
-                <div class="filter-group range-group">
-                    <label for="filterDateRange">Date Range</label>
-                    <div class="date-range">
-                        <input type="date" id="filterDateFrom" placeholder="From">
-                        <span>to</span>
-                        <input type="date" id="filterDateTo" placeholder="To">
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Bar -->
+            <div class="topbar">
+                <div class="topbar-inner">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <button class="sidebar-toggle" id="sidebarToggle">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                        <h1 class="topbar-title" id="topbarTitle">Inventory</h1>
                     </div>
-                </div>
-                <div class="filter-group range-group">
-                    <label for="filterWeightRange">Weight (g)</label>
-                    <div class="weight-range">
-                        <input type="number" id="filterWeightMin" placeholder="Min" min="0" max="10000" step="0.01">
-                        <span>to</span>
-                        <input type="number" id="filterWeightMax" placeholder="Max" min="0" max="10000" step="0.01">
+                    <div class="topbar-actions">
+                        <button class="topbar-btn" id="filterBtn">
+                            <i class="fas fa-line-height"></i> Filters
+                        </button>
+                        <button class="topbar-btn primary" id="addFilamentBtn">
+                            <i class="fas fa-plus"></i> Add
+                        </button>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <div class="tabs">
-            <button class="tab-link active" onclick="openTab(event, 'inventoryTab')">Current Inventory</button>
-            <button class="tab-link" onclick="openTab(event, 'usedTab')">Used Up Filaments</button>
-            <button class="tab-link" onclick="openTab(event, 'historyTab')">History</button>
-        </div>
-
-        <div id="inventoryTab" class="tab-content" style="display: block;">
-            <div class="stats">
-                <div class="stat-card">
-                    <div class="stat-number" id="totalFilaments">0</div>
-                    <div class="stat-label">Total Filaments</div>
+            <div class="content-wrapper">
+                <!-- Hidden legacy elements for backward compat -->
+                <div class="user-menu" id="userMenu" style="display:none;">
+                    <div class="user-info" id="userInfo">
+                        <i class="fas fa-user-circle"></i>
+                        <span id="usernameDisplay">Loading...</span>
+                        <span id="roleBadge" class="role-badge" style="display: none;"></span>
+                    </div>
+                    <button class="btn btn-admin" id="adminPanelBtn" title="Admin Panel" style="display: none;">
+                        <i class="fas fa-users-cog"></i>
+                        <span>Admin</span>
+                    </button>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-number" id="totalBrands">0</div>
-                    <div class="stat-label">Brands</div>
+
+                <div class="container">
+                    <!-- Search & Controls -->
+                    <div class="controls">
+                        <div class="search-container">
+                            <input type="text" id="searchInput" placeholder="Search filaments..." class="search-input">
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button id="searchBtn" class="pill-btn">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Filters Panel -->
+                    <div class="filters-panel" id="filtersPanel" style="display: none;">
+                        <div class="filters-header">
+                            <h3><i class="fas fa-slider"></i> Filters</h3>
+                            <div class="filters-actions">
+                                <button id="clearFiltersBtn" class="btn btn-secondary btn-small">
+                                    <i class="fas fa-times"></i> Clear
+                                </button>
+                                <button id="applyFiltersBtn" class="btn btn-primary btn-small">
+                                    <i class="fas fa-check"></i> Apply
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="active-filters" id="activeFilters" style="display: none;">
+                        </div>
+
+                        <div class="filters-content">
+                            <div class="filter-group">
+                                <label for="filterBrand">Brand</label>
+                                <select id="filterBrand" multiple>
+                                    <option value="">All Brands</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label for="filterType">Type</label>
+                                <select id="filterType" multiple>
+                                    <option value="">All Types</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label for="filterColor">Color</label>
+                                <select id="filterColor" multiple>
+                                    <option value="">All Colors</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label for="filterSpoolType">Spool</label>
+                                <select id="filterSpoolType" multiple>
+                                    <option value="">All Types</option>
+                                    <option value="with_spool">With Spool</option>
+                                    <option value="refill">Refill Only</option>
+                                </select>
+                            </div>
+                            <div class="filter-group range-group">
+                                <label>Date Range</label>
+                                <div class="date-range">
+                                    <input type="date" id="filterDateFrom" placeholder="From">
+                                    <span>to</span>
+                                    <input type="date" id="filterDateTo" placeholder="To">
+                                </div>
+                            </div>
+                            <div class="filter-group range-group">
+                                <label>Weight (g)</label>
+                                <div class="weight-range">
+                                    <input type="number" id="filterWeightMin" placeholder="Min" min="0" max="10000" step="0.01">
+                                    <span>to</span>
+                                    <input type="number" id="filterWeightMax" placeholder="Max" min="0" max="10000" step="0.01">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Desktop Tab Control (segmented) -->
+                    <div class="tabs">
+                        <button class="tab-link active" onclick="openTab(event, 'inventoryTab')">Current Inventory</button>
+                        <button class="tab-link" onclick="openTab(event, 'usedTab')">Used Up</button>
+                        <button class="tab-link" onclick="openTab(event, 'historyTab')">History</button>
+                    </div>
+
+                    <!-- Inventory Tab -->
+                    <div id="inventoryTab" class="tab-content" style="display: block;">
+                        <div class="stats">
+                            <div class="stat-card">
+                                <div class="stat-number" id="totalFilaments">0</div>
+                                <div class="stat-label">Total Spools</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-number" id="totalBrands">0</div>
+                                <div class="stat-label">Brands</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-number" id="totalWeight">0g</div>
+                                <div class="stat-label">Total Weight</div>
+                            </div>
+                        </div>
+
+                        <div class="filament-grid" id="filamentGrid">
+                        </div>
+                    </div>
+
+                    <!-- Used Tab -->
+                    <div id="usedTab" class="tab-content" style="display: none;">
+                        <div class="stats" id="usedStats">
+                        </div>
+                        <div class="filament-grid" id="usedFilamentGrid">
+                        </div>
+                    </div>
+
+                    <!-- History Tab -->
+                    <div id="historyTab" class="tab-content" style="display: none;">
+                        <div class="history-header">
+                            <div class="history-filter">
+                                <select id="historyFilamentFilter">
+                                    <option value="">All Filaments</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="history-timeline" id="historyTimeline">
+                        </div>
+                        <div class="history-loading" id="historyLoading" style="display: none;">
+                            <i class="fas fa-spinner fa-spin"></i> Loading history...
+                        </div>
+                        <div class="history-empty" id="historyEmpty" style="display: none;">
+                            <i class="fas fa-clock-rotate-left"></i>
+                            <p>No deduction history yet</p>
+                        </div>
+                        <div class="history-pagination" id="historyPagination" style="display: none;">
+                            <button class="btn btn-secondary btn-small" id="historyLoadMore">
+                                <i class="fas fa-chevron-down"></i> Load More
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Loading State -->
+                    <div class="loading" id="loading">
+                        <i class="fas fa-spinner fa-spin"></i> Loading...
+                    </div>
+
+                    <!-- Empty State -->
+                    <div class="empty-state" id="emptyState" style="display: none;">
+                        <i class="fas fa-cube"></i>
+                        <h3>No filaments found</h3>
+                        <p>Start by adding your first filament to the inventory</p>
+                        <button class="btn btn-primary" onclick="showAddModal()" style="border-radius: 9999px; padding: 10px 28px;">
+                            <i class="fas fa-plus"></i> Add Your First Filament
+                        </button>
+                    </div>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-number" id="totalWeight">0g</div>
-                    <div class="stat-label">Total Weight</div>
-                </div>
             </div>
-
-            <div class="filament-grid" id="filamentGrid">
-                <!-- Filament cards will be dynamically inserted here -->
-            </div>
-        </div>
-
-        <div id="usedTab" class="tab-content" style="display: none;">
-            <div class="stats" id="usedStats">
-                <!-- Used filament stats will be inserted here -->
-            </div>
-            <div class="filament-grid" id="usedFilamentGrid">
-                <!-- Used up filament cards will be dynamically inserted here -->
-            </div>
-        </div>
-
-        <div id="historyTab" class="tab-content" style="display: none;">
-            <div class="history-header">
-                <div class="history-filter">
-                    <select id="historyFilamentFilter">
-                        <option value="">All Filaments</option>
-                    </select>
-                </div>
-            </div>
-            <div class="history-timeline" id="historyTimeline">
-                <!-- Deduction history entries will be dynamically inserted here -->
-            </div>
-            <div class="history-loading" id="historyLoading" style="display: none;">
-                <i class="fas fa-spinner fa-spin"></i> Loading history...
-            </div>
-            <div class="history-empty" id="historyEmpty" style="display: none;">
-                <i class="fas fa-clock-rotate-left"></i>
-                <p>No deduction history yet</p>
-            </div>
-            <div class="history-pagination" id="historyPagination" style="display: none;">
-                <button class="btn btn-secondary btn-small" id="historyLoadMore">
-                    <i class="fas fa-chevron-down"></i> Load More
-                </button>
-            </div>
-        </div>
-
-        <div class="loading" id="loading">
-            <i class="fas fa-spinner fa-spin"></i> Loading...
-        </div>
-
-        <div class="empty-state" id="emptyState" style="display: none;">
-            <i class="fas fa-cube"></i>
-            <h3>No filaments found</h3>
-            <p>Start by adding your first filament to the inventory</p>
-            <button class="btn btn-primary" onclick="showAddModal()">
-                <i class="fas fa-plus"></i> Add Your First Filament
-            </button>
-        </div>
+        </main>
     </div>
 
     <!-- Add/Edit Modal -->
     <div class="modal" id="filamentModal">
+        <div class="modal-overlay" onclick="closeModal()"></div>
         <div class="modal-content">
             <div class="modal-header">
                 <h2 id="modalTitle">Add New Filament</h2>
                 <button class="close-btn" onclick="closeModal()">
-                    <i class="fas fa-times"></i>
+                    <i class="fas fa-xmark"></i>
                 </button>
             </div>
             <div class="modal-body">
@@ -238,7 +299,7 @@
                     <input type="hidden" id="filamentId">
 
                     <div class="form-group">
-                        <label for="brand">Brand *</label>
+                        <label for="brand">Brand</label>
                         <select id="brand" required>
                             <option value="">Select brand</option>
                             <option value="Bambu Lab" selected>Bambu Lab</option>
@@ -260,7 +321,7 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="type">Type *</label>
+                        <label for="type">Type</label>
                         <select id="type" required>
                             <option value="">Select filament type</option>
                             <option value="PLA" selected>PLA</option>
@@ -283,12 +344,12 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="color">Color *</label>
+                        <label for="color">Color</label>
                         <div class="dropdown-container">
                             <div class="custom-dropdown" id="colorDropdown">
                                 <div class="dropdown-selected" id="colorSelected">
                                     <span class="selected-text">Select color</span>
-                                    <i class="dropdown-arrow">▼</i>
+                                    <i class="dropdown-arrow">&#9662;</i>
                                 </div>
                                 <div class="dropdown-options" id="colorOptions">
                                     <div class="dropdown-option" data-value="Black" data-color="#000000">
@@ -296,8 +357,7 @@
                                         <span>Black</span>
                                     </div>
                                     <div class="dropdown-option" data-value="White" data-color="#ffffff">
-                                        <span class="color-indicator"
-                                            style="background-color: #ffffff; border-color: #999;"></span>
+                                        <span class="color-indicator" style="background-color: #ffffff; border-color: #999;"></span>
                                         <span>White</span>
                                     </div>
                                     <div class="dropdown-option" data-value="Red" data-color="#ff0000">
@@ -344,15 +404,12 @@
                                         <span class="color-indicator" style="background-color: #ffd700;"></span>
                                         <span>Gold</span>
                                     </div>
-                                    <div class="dropdown-option" data-value="Transparent"
-                                        data-color="rgba(255,255,255,0.3)">
-                                        <span class="color-indicator"
-                                            style="background-color: rgba(255,255,255,0.3); border-color: #999;"></span>
+                                    <div class="dropdown-option" data-value="Transparent" data-color="rgba(255,255,255,0.3)">
+                                        <span class="color-indicator" style="background-color: rgba(255,255,255,0.3); border-color: #999;"></span>
                                         <span>Transparent</span>
                                     </div>
                                     <div class="dropdown-option" data-value="Clear" data-color="rgba(255,255,255,0.3)">
-                                        <span class="color-indicator"
-                                            style="background-color: rgba(255,255,255,0.3); border-color: #999;"></span>
+                                        <span class="color-indicator" style="background-color: rgba(255,255,255,0.3); border-color: #999;"></span>
                                         <span>Clear</span>
                                     </div>
                                     <div class="dropdown-option" data-value="Natural" data-color="#f5f5dc">
@@ -379,14 +436,12 @@
                             </div>
                             <input type="hidden" id="color" name="color" required>
                             <div id="customColorContainer" style="display: none;">
-                                <input type="text" id="customColorName" class="custom-input"
-                                    placeholder="Enter custom color name">
+                                <input type="text" id="customColorName" class="custom-input" placeholder="Enter custom color name">
                                 <div class="color-picker-container">
                                     <label for="colorPicker">Choose Color:</label>
                                     <div class="color-input-group">
                                         <input type="color" id="colorPicker" value="#ff0000">
-                                        <input type="text" id="colorHex" placeholder="#FF0000" maxlength="7"
-                                            pattern="^#[0-9A-Fa-f]{6}$">
+                                        <input type="text" id="colorHex" placeholder="#FF0000" maxlength="7" pattern="^#[0-9A-Fa-f]{6}$">
                                     </div>
                                 </div>
                             </div>
@@ -394,7 +449,7 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="spoolType">Spool Type *</label>
+                        <label for="spoolType">Spool Type</label>
                         <select id="spoolType" required>
                             <option value="">Select spool type</option>
                             <option value="with_spool">With Spool</option>
@@ -403,7 +458,7 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="weightRemaining">Weight Remaining (grams)</label>
+                        <label for="weightRemaining">Weight Remaining (g)</label>
                         <input type="number" id="weightRemaining" min="0" max="10000" step="0.01" value="1000" required>
                     </div>
 
@@ -416,7 +471,6 @@
                         <label for="notes">Notes</label>
                         <textarea id="notes" rows="3" placeholder="Optional notes about this filament..."></textarea>
                     </div>
-
                 </form>
             </div>
             <div class="form-actions">
@@ -428,18 +482,19 @@
 
     <!-- Use Filament Modal -->
     <div class="modal" id="useFilamentModal">
+        <div class="modal-overlay" onclick="closeUseModal()"></div>
         <div class="modal-content">
             <div class="modal-header">
                 <h2 id="useModalTitle">Use Filament</h2>
                 <button class="close-btn" onclick="closeUseModal()">
-                    <i class="fas fa-times"></i>
+                    <i class="fas fa-xmark"></i>
                 </button>
             </div>
             <div class="modal-body">
                 <form id="useFilamentForm">
                     <input type="hidden" id="useFilamentId">
                     <div class="form-group">
-                        <label for="usageType">Update method:</label>
+                        <label for="usageType">Update Method</label>
                         <select id="usageType">
                             <option value="used">Amount Used (g)</option>
                             <option value="remaining">Amount Remaining (g)</option>
@@ -460,17 +515,17 @@
 
     <!-- Delete Confirmation Modal -->
     <div class="modal" id="deleteModal">
+        <div class="modal-overlay" onclick="closeDeleteModal()"></div>
         <div class="modal-content">
             <div class="modal-header">
                 <h2>Delete Filament</h2>
                 <button class="close-btn" onclick="closeDeleteModal()">
-                    <i class="fas fa-times"></i>
+                    <i class="fas fa-xmark"></i>
                 </button>
             </div>
             <div class="modal-body">
                 <p>Are you sure you want to delete this filament?</p>
-                <div id="deletePreview" style="margin: 15px 0; padding: 10px; background: #f5f5f5; border-radius: 5px;">
-                </div>
+                <div id="deletePreview" style="margin: 15px 0; padding: 12px; background: var(--bg-primary); border-radius: 10px;"></div>
                 <p><strong>This action cannot be undone.</strong></p>
             </div>
             <div class="form-actions">
@@ -479,13 +534,15 @@
             </div>
         </div>
     </div>
+
     <!-- Admin Panel Modal -->
     <div class="modal" id="adminModal">
+        <div class="modal-overlay" onclick="closeAdminModal()"></div>
         <div class="modal-content modal-large">
             <div class="modal-header">
-                <h2><i class="fas fa-users-cog"></i> Admin Panel - User Management</h2>
+                <h2><i class="fas fa-users-cog"></i> User Management</h2>
                 <button class="close-btn" onclick="closeAdminModal()">
-                    <i class="fas fa-times"></i>
+                    <i class="fas fa-xmark"></i>
                 </button>
             </div>
             <div class="modal-body">
@@ -493,7 +550,6 @@
                     <i class="fas fa-info-circle"></i>
                     <span>Manage user accounts, roles, and passwords. Each user has their own separate inventory.</span>
                 </div>
-
                 <div class="users-table-container">
                     <table class="users-table" id="usersTable">
                         <thead>
@@ -506,11 +562,9 @@
                             </tr>
                         </thead>
                         <tbody id="usersTableBody">
-                            <!-- Users will be dynamically inserted here -->
                         </tbody>
                     </table>
                 </div>
-
                 <div id="usersLoading" class="admin-loading" style="display: none;">
                     <i class="fas fa-spinner fa-spin"></i> Loading users...
                 </div>
@@ -520,21 +574,21 @@
 
     <!-- Change Password Modal -->
     <div class="modal" id="changePasswordModal">
+        <div class="modal-overlay" onclick="closeChangePasswordModal()"></div>
         <div class="modal-content">
             <div class="modal-header">
                 <h2><i class="fas fa-key"></i> Change Password</h2>
                 <button class="close-btn" onclick="closeChangePasswordModal()">
-                    <i class="fas fa-times"></i>
+                    <i class="fas fa-xmark"></i>
                 </button>
             </div>
             <div class="modal-body">
-                <p>Set a new password for user: <strong id="changePasswordUsername"></strong></p>
+                <p style="margin-bottom: 16px;">Set a new password for user: <strong id="changePasswordUsername"></strong></p>
                 <form id="changePasswordForm">
                     <input type="hidden" id="changePasswordUserId">
                     <div class="form-group">
                         <label for="newPassword">New Password</label>
-                        <input type="password" id="newPassword" placeholder="Enter new password (min 6 characters)"
-                            minlength="6" required>
+                        <input type="password" id="newPassword" placeholder="Enter new password (min 6 characters)" minlength="6" required>
                     </div>
                     <div class="form-group">
                         <label for="confirmNewPassword">Confirm Password</label>
@@ -551,11 +605,12 @@
 
     <!-- Delete User Confirmation Modal -->
     <div class="modal" id="deleteUserModal">
+        <div class="modal-overlay" onclick="closeDeleteUserModal()"></div>
         <div class="modal-content">
             <div class="modal-header">
                 <h2>Delete User</h2>
                 <button class="close-btn" onclick="closeDeleteUserModal()">
-                    <i class="fas fa-times"></i>
+                    <i class="fas fa-xmark"></i>
                 </button>
             </div>
             <div class="modal-body">
@@ -563,8 +618,7 @@
                 <input type="hidden" id="deleteUserId">
                 <div class="warning-box">
                     <i class="fas fa-exclamation-triangle"></i>
-                    <span>This will permanently delete the user and ALL their inventory data. This action cannot be
-                        undone.</span>
+                    <span>This will permanently delete the user and ALL their inventory data. This action cannot be undone.</span>
                 </div>
             </div>
             <div class="form-actions">
@@ -576,11 +630,12 @@
 
     <!-- Spool History Modal -->
     <div class="modal" id="spoolHistoryModal">
+        <div class="modal-overlay" onclick="closeSpoolHistoryModal()"></div>
         <div class="modal-content modal-large">
             <div class="modal-header">
                 <h2><i class="fas fa-clock-rotate-left"></i> Spool History</h2>
                 <button class="close-btn" onclick="closeSpoolHistoryModal()">
-                    <i class="fas fa-times"></i>
+                    <i class="fas fa-xmark"></i>
                 </button>
             </div>
             <div class="modal-body">
@@ -612,7 +667,7 @@
             <span>Dashboard</span>
         </button>
         <button class="bottom-nav-item" data-tab="inventory" id="navInventory">
-            <i class="fas fa-boxes-stacked"></i>
+            <i class="fas fa-cube"></i>
             <span>Inventory</span>
         </button>
         <button class="bottom-nav-item nav-add-spacer" data-tab="add" id="navAdd">
@@ -624,7 +679,7 @@
             <span>History</span>
         </button>
         <button class="bottom-nav-item" data-tab="settings" id="navSettings">
-            <i class="fas fa-cog"></i>
+            <i class="fas fa-gearshape"></i>
             <span>Settings</span>
         </button>
     </nav>
@@ -636,11 +691,11 @@
             <div class="mobile-dash-stats">
                 <div class="mobile-dash-stat">
                     <div class="mobile-dash-stat-number" id="dashTotalSpools">0</div>
-                    <div class="mobile-dash-stat-label">Total Spools</div>
+                    <div class="mobile-dash-stat-label">Spools</div>
                 </div>
                 <div class="mobile-dash-stat">
                     <div class="mobile-dash-stat-number" id="dashTotalWeight">0g</div>
-                    <div class="mobile-dash-stat-label">Total Weight</div>
+                    <div class="mobile-dash-stat-label">Weight</div>
                 </div>
                 <div class="mobile-dash-stat">
                     <div class="mobile-dash-stat-number" id="dashBrandsCount">0</div>
@@ -665,7 +720,7 @@
     <!-- Mobile Settings Panel -->
     <div class="mobile-settings-panel" id="mobileSettingsPanel" style="display: none;">
         <div class="mobile-settings-header">
-            <h2><i class="fas fa-cog"></i> Settings</h2>
+            <h2>Settings</h2>
         </div>
         <div class="mobile-settings-content">
             <button class="settings-item" id="settingsManageCustom" onclick="showManageCustomsModal()">
@@ -687,7 +742,7 @@
                 </div>
             </div>
             <button class="settings-item settings-logout" id="settingsLogout">
-                <i class="fas fa-sign-out-alt"></i>
+                <i class="fas fa-arrow-right-from-bracket"></i>
                 <span>Logout</span>
             </button>
         </div>
