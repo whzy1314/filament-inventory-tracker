@@ -146,6 +146,8 @@ function setupEventListeners() {
     document.getElementById('filterBtn').addEventListener('click', toggleFiltersPanel);
     const mobileFilterBtn = document.getElementById('mobileFilterBtn');
     if (mobileFilterBtn) mobileFilterBtn.addEventListener('click', toggleFiltersPanel);
+    const mobileAddBtn = document.getElementById('mobileAddBtn');
+    if (mobileAddBtn) mobileAddBtn.addEventListener('click', showAddModal);
     document.getElementById('applyFiltersBtn').addEventListener('click', applyFilters);
     document.getElementById('clearFiltersBtn').addEventListener('click', clearFilters);
 
@@ -2017,15 +2019,17 @@ function clearFilters() {
 }
 
 function applyFiltersAndSearch() {
-    let filteredFilaments = [...filaments];
     const searchQuery = searchInput.value.trim().toLowerCase();
 
-    // Always apply stock-status scope for inventory tab
+    // Data source by stock status
     const stockStatus = currentFilters.stockStatus || 'active';
-    if (stockStatus === 'active') {
-        filteredFilaments = filteredFilaments.filter(f => !f.is_archived);
-    } else if (stockStatus === 'used') {
-        filteredFilaments = filteredFilaments.filter(f => !!f.is_archived);
+    let filteredFilaments;
+    if (stockStatus === 'used') {
+        filteredFilaments = [...usedFilaments];
+    } else if (stockStatus === 'all') {
+        filteredFilaments = [...filaments, ...usedFilaments];
+    } else {
+        filteredFilaments = [...filaments].filter(f => !f.is_archived);
     }
 
     // Apply search filter
@@ -2045,7 +2049,6 @@ function applyFiltersAndSearch() {
         if (currentFilters.colors.length > 0 && !currentFilters.colors.includes(filament.color)) return false;
         if (currentFilters.spoolTypes.length > 0 && !currentFilters.spoolTypes.includes(filament.spool_type)) return false;
 
-        // Date range filter
         if (currentFilters.dateFrom || currentFilters.dateTo) {
             const filamentDate = filament.purchase_date ? new Date(filament.purchase_date) : null;
             if (currentFilters.dateFrom) {
@@ -2058,7 +2061,6 @@ function applyFiltersAndSearch() {
             }
         }
 
-        // Weight range filter
         if (currentFilters.weightMin !== null || currentFilters.weightMax !== null) {
             const weight = filament.weight_remaining || 0;
             if (currentFilters.weightMin !== null && weight < currentFilters.weightMin) return false;
