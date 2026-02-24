@@ -42,6 +42,7 @@ const toast = document.getElementById('toast');
 const totalFilaments = document.getElementById('totalFilaments');
 const totalBrands = document.getElementById('totalBrands');
 const totalWeight = document.getElementById('totalWeight');
+const desktopLowStockList = document.getElementById('desktopLowStockList');
 const usedStatsContainer = document.getElementById('usedStats');
 
 // Initialize app
@@ -407,6 +408,32 @@ function updateStats(filamentsToCount = filaments) {
     totalFilaments.textContent = total;
     totalBrands.textContent = brands;
     totalWeight.textContent = `${formatWeight(weight)}g`;
+    renderDesktopLowStock(activeFilaments);
+}
+
+function renderDesktopLowStock(activeFilaments) {
+    if (!desktopLowStockList) return;
+
+    const lowStock = activeFilaments
+        .filter(f => (f.weight_remaining || 0) < 100)
+        .sort((a, b) => (a.weight_remaining || 0) - (b.weight_remaining || 0));
+
+    if (lowStock.length === 0) {
+        desktopLowStockList.innerHTML = '<div class="desktop-low-stock-empty">All spools above 100g</div>';
+        return;
+    }
+
+    desktopLowStockList.innerHTML = lowStock.map(f => {
+        const colorHex = f.color_hex || getColorHexSync(f.color);
+        return `<div class="desktop-low-stock-item">
+            <span class="desktop-low-stock-dot" style="background-color: ${colorHex};"></span>
+            <div class="desktop-low-stock-info">
+                <span class="desktop-low-stock-title">${escapeHtml(f.brand)} ${escapeHtml(f.type)}</span>
+                <span class="desktop-low-stock-subtitle">${escapeHtml(f.color || 'Unknown')}</span>
+            </div>
+            <span class="desktop-low-stock-value">${formatWeight(f.weight_remaining)}g</span>
+        </div>`;
+    }).join('');
 }
 
 function updateUsedStats() {
