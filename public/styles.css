@@ -92,6 +92,10 @@ button {
     font-size: inherit;
 }
 
+.mobile-only {
+    display: none !important;
+}
+
 input, select, textarea {
     font-family: inherit;
     font-size: inherit;
@@ -2324,27 +2328,15 @@ img {
     }
 
     .bottom-nav-item.nav-add-spacer {
-        position: relative;
-        background: none !important;
+        display: none !important;
     }
 
-    .nav-add-btn {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 44px;
-        height: 44px;
-        border-radius: 50%;
-        background: var(--accent);
-        color: #fff;
-        font-size: 20px;
-        margin-top: -10px;
-        box-shadow: 0 2px 8px rgba(0, 122, 255, 0.4);
+    .mobile-fab {
+        display: none !important;
     }
 
-    .nav-add-btn i {
-        font-size: 20px;
-        color: #fff;
+    .mobile-only {
+        display: inline-flex !important;
     }
 
     /* Hide desktop tab bar on mobile */

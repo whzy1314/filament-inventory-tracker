@@ -143,6 +143,8 @@ function setupEventListeners() {
 
     // Filter event listeners
     document.getElementById('filterBtn').addEventListener('click', toggleFiltersPanel);
+    const mobileFilterBtn = document.getElementById('mobileFilterBtn');
+    if (mobileFilterBtn) mobileFilterBtn.addEventListener('click', toggleFiltersPanel);
     document.getElementById('applyFiltersBtn').addEventListener('click', applyFilters);
     document.getElementById('clearFiltersBtn').addEventListener('click', clearFilters);
 
