@@ -43,6 +43,7 @@ const totalFilaments = document.getElementById('totalFilaments');
 const totalBrands = document.getElementById('totalBrands');
 const totalWeight = document.getElementById('totalWeight');
 const desktopLowStockList = document.getElementById('desktopLowStockList');
+const desktopLowStockCount = document.getElementById('desktopLowStockCount');
 const usedStatsContainer = document.getElementById('usedStats');
 
 // Initialize app
@@ -418,8 +419,12 @@ function renderDesktopLowStock(activeFilaments) {
         .filter(f => (f.weight_remaining || 0) < 100)
         .sort((a, b) => (a.weight_remaining || 0) - (b.weight_remaining || 0));
 
+    if (desktopLowStockCount) {
+        desktopLowStockCount.textContent = String(lowStock.length);
+    }
+
     if (lowStock.length === 0) {
-        desktopLowStockList.innerHTML = '<div class="desktop-low-stock-empty">All spools above 100g</div>';
+        desktopLowStockList.innerHTML = '<div class="desktop-low-stock-empty">No spools currently below 100g</div>';
         return;
     }
 
