@@ -2499,14 +2499,14 @@ function initMobileNav() {
                     showMobileSection('dashboard');
                     break;
                 case 'inventory':
-                    showMobileSection('inventory');
+                    showMobileSection('inventory', 'Inventory');
                     switchTab('inventoryTab');
                     break;
                 case 'add':
                     showAddModal();
                     break;
                 case 'history':
-                    showMobileSection('inventory');
+                    showMobileSection('inventory', 'History');
                     switchTab('historyTab');
                     loadDeductionHistory();
                     break;
@@ -2543,10 +2543,13 @@ function initMobileNav() {
     }
 }
 
-function showMobileSection(section) {
+function showMobileSection(section, title) {
     const settingsPanel = document.getElementById('mobileSettingsPanel');
     const dashboardView = document.getElementById('mobileDashboardView');
     const container = document.querySelector('.container');
+    const contentWrapper = document.querySelector('.content-wrapper');
+    const topbarTitle = document.getElementById('topbarTitle');
+    const topbarActions = document.querySelector('.topbar-actions');
 
     // Hide both overlay panels first
     if (settingsPanel) settingsPanel.style.display = 'none';
@@ -2555,7 +2558,10 @@ function showMobileSection(section) {
     if (section === 'settings') {
         // Hide main container content, show settings
         if (container) container.style.display = 'none';
+        if (contentWrapper) contentWrapper.style.display = 'none';
         if (settingsPanel) settingsPanel.style.display = 'block';
+        if (topbarTitle) topbarTitle.textContent = 'Settings';
+        if (topbarActions) topbarActions.style.display = 'none';
         // Update settings info
         if (currentUser) {
             const nameEl = document.getElementById('settingsUsername');
@@ -2574,11 +2580,17 @@ function showMobileSection(section) {
     } else if (section === 'dashboard') {
         // Hide main container content, show dashboard
         if (container) container.style.display = 'none';
+        if (contentWrapper) contentWrapper.style.display = 'none';
         if (dashboardView) dashboardView.style.display = 'block';
+        if (topbarTitle) topbarTitle.textContent = 'Dashboard';
+        if (topbarActions) topbarActions.style.display = 'none';
         renderMobileDashboard();
     } else {
         // Show main container for inventory/history
         if (container) container.style.display = 'block';
+        if (contentWrapper) contentWrapper.style.display = 'block';
+        if (topbarTitle) topbarTitle.textContent = title || 'Inventory';
+        if (topbarActions) topbarActions.style.display = 'flex';
     }
 }
 

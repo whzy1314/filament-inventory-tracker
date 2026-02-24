@@ -49,6 +49,7 @@
     --content-max-width: 960px;
 
     --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-top: env(safe-area-inset-top, 0px);
 }
 
 /* --- Reset & Base --- */
@@ -2236,14 +2237,39 @@ img {
         font-size: 18px;
     }
 
-    /* Topbar adjustments */
+    /* Topbar adjustments — fixed on mobile with safe area */
     .topbar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
         padding: 0 16px;
+        padding-top: var(--safe-area-top);
+        z-index: 200;
     }
 
     .topbar-title {
         font-size: 17px;
         font-weight: 600;
+    }
+
+    /* Push main-content below fixed topbar */
+    .main-content {
+        padding-top: calc(var(--topbar-height) + var(--safe-area-top));
+    }
+
+    /* Mobile Dashboard & Settings — fixed viewport fill between topbar and tab bar */
+    .mobile-dashboard-view,
+    .mobile-settings-panel {
+        position: fixed;
+        top: calc(var(--topbar-height) + var(--safe-area-top));
+        left: 0;
+        right: 0;
+        bottom: var(--mobile-tab-height);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        background: var(--bg-primary);
+        z-index: 100;
     }
 
     /* Content wrapper */
@@ -2385,7 +2411,7 @@ img {
 
     /* Mobile FAB - hidden since we use tab bar */
     .mobile-fab {
-        display: none;
+        display: none !important;
     }
 
     /* Filters responsive */
