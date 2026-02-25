@@ -1,6 +1,6 @@
 // App version
 const APP_VERSION = '1.0.0';
-const APP_COMMIT = '3769414';
+const APP_COMMIT = '95550c6';
 
 // Apply saved theme immediately to prevent flash
 (function() {
@@ -2267,7 +2267,6 @@ let currentActiveTab = 'inventoryTab';
 function updateControlsForTab(tabName) {
     currentActiveTab = tabName;
     const isHistoryTab = tabName === 'historyTab';
-    const isUsedTab = tabName === 'usedTab';
     const isInventoryTab = tabName === 'inventoryTab';
     const topbarAddBtn = document.getElementById('addFilamentBtn');
     const filterBtn = document.getElementById('filterBtn');
@@ -2276,11 +2275,7 @@ function updateControlsForTab(tabName) {
 
     // Show Add button only on inventory tab
     if (topbarAddBtn) topbarAddBtn.hidden = !isInventoryTab;
-    if (mobileAddBtn) mobileAddBtn.hidden = !isInventoryTab;
-
-    // Hide Filter button on used tab (no filtering needed)
-    if (filterBtn) filterBtn.hidden = isUsedTab;
-    if (mobileFilterBtn) mobileFilterBtn.hidden = isUsedTab;
+    if (mobileAddBtn) mobileAddBtn.style.display = isInventoryTab ? '' : 'none';
 
     // Update search placeholder based on tab
     if (searchInput) {
@@ -2779,9 +2774,9 @@ function showMobileSection(section, title) {
         // Hide add button when showing History on mobile
         const isHistory = title === 'History';
         const mobileAddBtn = document.getElementById('mobileAddBtn');
-        if (mobileAddBtn) mobileAddBtn.hidden = isHistory;
+        if (mobileAddBtn) mobileAddBtn.style.display = isHistory ? 'none' : '';
         const topbarAddBtn = document.getElementById('addFilamentBtn');
-        if (topbarAddBtn) topbarAddBtn.hidden = isHistory;
+        if (topbarAddBtn) topbarAddBtn.style.display = isHistory ? 'none' : '';
     }
 }
 
@@ -3184,9 +3179,17 @@ function initThemeToggle() {
         metaTheme.setAttribute('content', '#000000');
     }
     const sidebarBtn = document.getElementById('themeToggleBtn');
-    if (sidebarBtn) sidebarBtn.addEventListener('click', toggleTheme);
+    if (sidebarBtn) sidebarBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        toggleTheme();
+    });
     const settingsBtn = document.getElementById('settingsThemeToggle');
-    if (settingsBtn) settingsBtn.addEventListener('click', toggleTheme);
+    if (settingsBtn) settingsBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        toggleTheme();
+    });
     // Listen for system theme changes when no saved preference
     if (window.matchMedia) {
         window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
@@ -3276,7 +3279,6 @@ function initSidebarNav() {
             // Switch section via desktop tab mechanism
             const tabMap = {
                 'inventory': 'inventoryTab',
-                'used': 'usedTab',
                 'history': 'historyTab'
             };
 
@@ -3309,7 +3311,7 @@ function initSidebarNav() {
                 }
 
                 // Update topbar title
-                const titles = { 'inventory': 'Inventory', 'used': 'Used Up', 'history': 'History' };
+                const titles = { 'inventory': 'Inventory', 'history': 'History' };
                 if (topbarTitle) topbarTitle.textContent = titles[section] || 'Inventory';
             }
         });
@@ -3322,14 +3324,14 @@ function initSidebarNav() {
     const origOpenTab = openTab;
     window.openTab = function(evt, tabName) {
         origOpenTab(evt, tabName);
-        const sectionMap = { 'inventoryTab': 'inventory', 'usedTab': 'used', 'historyTab': 'history' };
+        const sectionMap = { 'inventoryTab': 'inventory', 'historyTab': 'history' };
         const section = sectionMap[tabName];
         if (section) {
             document.querySelectorAll('.sidebar-item[data-section]').forEach(item => {
                 item.classList.toggle('active', item.dataset.section === section);
             });
             const topbarTitle = document.getElementById('topbarTitle');
-            const titles = { 'inventory': 'Inventory', 'used': 'Used Up', 'history': 'History' };
+            const titles = { 'inventory': 'Inventory', 'history': 'History' };
             if (topbarTitle) topbarTitle.textContent = titles[section] || 'Inventory';
         }
     };

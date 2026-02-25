@@ -58,11 +58,7 @@
                     <i class="fas fa-cube"></i>
                     <span>Inventory</span>
                 </button>
-                <button class="sidebar-item" data-section="used" id="sidebarUsed">
-                    <i class="fas fa-archive"></i>
-                    <span>Used Up</span>
-                </button>
-                <button class="sidebar-item" data-section="history" id="sidebarHistory">
+<button class="sidebar-item" data-section="history" id="sidebarHistory">
                     <i class="fas fa-clock-rotate-left"></i>
                     <span>History</span>
                 </button>
@@ -225,7 +221,6 @@
                     <!-- Desktop Tab Control (segmented) -->
                     <div class="tabs">
                         <button class="tab-link active" onclick="openTab(event, 'inventoryTab')">Current Inventory</button>
-                        <button class="tab-link" onclick="openTab(event, 'usedTab')">Used Up</button>
                         <button class="tab-link" onclick="openTab(event, 'historyTab')">History</button>
                     </div>
 
@@ -260,14 +255,6 @@
                         </section>
 
                         <div class="filament-grid" id="filamentGrid">
-                        </div>
-                    </div>
-
-                    <!-- Used Tab -->
-                    <div id="usedTab" class="tab-content" style="display: none;">
-                        <div class="stats" id="usedStats">
-                        </div>
-                        <div class="filament-grid" id="usedFilamentGrid">
                         </div>
                     </div>
 
