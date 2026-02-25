@@ -139,6 +139,10 @@ function setupEventListeners() {
         }
     });
     searchInput.addEventListener('input', (e) => {
+        if (currentActiveTab === 'historyTab') {
+            filterHistoryBySearch(e.target.value.trim());
+            return;
+        }
         if (e.target.value === '') {
             applyFiltersAndSearch();
         }
@@ -250,9 +254,15 @@ async function loadUsedFilaments() {
     }
 }
 
-// Search filaments
+// Search filaments or history depending on active tab
 async function handleSearch() {
     const query = searchInput.value.trim();
+
+    if (currentActiveTab === 'historyTab') {
+        filterHistoryBySearch(query);
+        return;
+    }
+
     if (!query) {
         loadFilaments();
         return;
@@ -267,6 +277,87 @@ async function handleSearch() {
         console.error('Search failed:', error);
     } finally {
         showLoading(false);
+    }
+}
+
+// Client-side search/filter for history entries
+function filterHistoryBySearch(query) {
+    const timeline = document.getElementById('historyTimeline');
+    const emptyEl = document.getElementById('historyEmpty');
+    if (!timeline) return;
+
+    const q = (query || '').toLowerCase();
+
+    if (!q) {
+        // No search query — show all loaded history
+        timeline.innerHTML = historyData.map(entry => createHistoryEntry(entry)).join('');
+        if (emptyEl) emptyEl.style.display = historyData.length === 0 ? 'block' : 'none';
+        return;
+    }
+
+    const filtered = historyData.filter(entry => {
+        const brand = (entry.brand || '').toLowerCase();
+        const type = (entry.type || '').toLowerCase();
+        const color = (entry.color || '').toLowerCase();
+        const printName = (entry.print_name || '').toLowerCase();
+        const matchedBy = (entry.matched_by || '').toLowerCase();
+        return brand.includes(q) || type.includes(q) || color.includes(q) || printName.includes(q) || matchedBy.includes(q);
+    });
+
+    if (filtered.length === 0) {
+        timeline.innerHTML = '<div class="history-empty-inline"><p>No history matching your search</p></div>';
+        if (emptyEl) emptyEl.style.display = 'none';
+    } else {
+        timeline.innerHTML = filtered.map(entry => createHistoryEntry(entry)).join('');
+        if (emptyEl) emptyEl.style.display = 'none';
+    }
+}
+
+// Apply filter panel (brand/type/color/date) to history entries
+function filterHistoryByFilters() {
+    const searchQuery = (searchInput.value || '').trim().toLowerCase();
+    const timeline = document.getElementById('historyTimeline');
+    const emptyEl = document.getElementById('historyEmpty');
+    if (!timeline) return;
+
+    let filtered = [...historyData];
+
+    // Apply search text
+    if (searchQuery) {
+        filtered = filtered.filter(entry => {
+            const brand = (entry.brand || '').toLowerCase();
+            const type = (entry.type || '').toLowerCase();
+            const color = (entry.color || '').toLowerCase();
+            const printName = (entry.print_name || '').toLowerCase();
+            return brand.includes(searchQuery) || type.includes(searchQuery) || color.includes(searchQuery) || printName.includes(searchQuery);
+        });
+    }
+
+    // Apply advanced filters from filter panel
+    if (currentFilters.brands.length > 0) {
+        filtered = filtered.filter(e => currentFilters.brands.includes(e.brand));
+    }
+    if (currentFilters.types.length > 0) {
+        filtered = filtered.filter(e => currentFilters.types.includes(e.type));
+    }
+    if (currentFilters.colors.length > 0) {
+        filtered = filtered.filter(e => currentFilters.colors.includes(e.color));
+    }
+    if (currentFilters.dateFrom || currentFilters.dateTo) {
+        filtered = filtered.filter(e => {
+            const entryDate = new Date(e.created_at + 'Z');
+            if (currentFilters.dateFrom && entryDate < new Date(currentFilters.dateFrom)) return false;
+            if (currentFilters.dateTo && entryDate > new Date(currentFilters.dateTo + 'T23:59:59Z')) return false;
+            return true;
+        });
+    }
+
+    if (filtered.length === 0) {
+        timeline.innerHTML = '<div class="history-empty-inline"><p>No history matching your filters</p></div>';
+        if (emptyEl) emptyEl.style.display = 'none';
+    } else {
+        timeline.innerHTML = filtered.map(entry => createHistoryEntry(entry)).join('');
+        if (emptyEl) emptyEl.style.display = 'none';
     }
 }
 
@@ -2064,6 +2155,12 @@ function clearFilters() {
 }
 
 function applyFiltersAndSearch() {
+    // If on history tab, filter history instead
+    if (currentActiveTab === 'historyTab') {
+        filterHistoryByFilters();
+        return;
+    }
+
     const searchQuery = searchInput.value.trim().toLowerCase();
 
     // Data source by stock status
@@ -2151,25 +2248,23 @@ window.toggleFiltersPanel = toggleFiltersPanel;
 window.applyFilters = applyFilters;
 window.clearFilters = clearFilters;
 
+let currentActiveTab = 'inventoryTab';
+
 function updateControlsForTab(tabName) {
+    currentActiveTab = tabName;
     const isHistoryTab = tabName === 'historyTab';
-    const isUsedTab = tabName === 'usedTab';
     const topbarAddBtn = document.getElementById('addFilamentBtn');
     const mobileAddBtn = document.getElementById('mobileAddBtn');
-    const mobileFilterBtn = document.getElementById('mobileFilterBtn');
-    const filterBtn = document.getElementById('filterBtn');
-    const controlsEl = document.querySelector('.controls');
 
-    // Hide Add button on history tab
+    // Hide Add button on history tab only
     if (topbarAddBtn) topbarAddBtn.hidden = isHistoryTab;
     if (mobileAddBtn) mobileAddBtn.hidden = isHistoryTab;
 
-    // Hide inventory filter buttons on history/used tabs
-    if (mobileFilterBtn) mobileFilterBtn.hidden = isHistoryTab || isUsedTab;
-    if (filterBtn) filterBtn.hidden = isHistoryTab || isUsedTab;
-
-    // Hide search bar on history tab (history has its own filament filter dropdown)
-    if (controlsEl) controlsEl.hidden = isHistoryTab;
+    // Update search placeholder based on tab
+    if (searchInput) {
+        searchInput.placeholder = isHistoryTab ? 'Search history...' : 'Search filaments...';
+        searchInput.value = '';
+    }
 }
 
 function openTab(evt, tabName) {
