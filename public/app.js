@@ -258,6 +258,11 @@ async function loadUsedFilaments() {
         usedFilaments = await apiCall('/filaments/used');
         renderUsedFilaments(usedFilaments);
         updateUsedStats();
+        // Update used up counts everywhere
+        const totalUsedUpEl = document.getElementById('totalUsedUp');
+        if (totalUsedUpEl) totalUsedUpEl.textContent = usedFilaments.length;
+        const dashUsedUp = document.getElementById('dashUsedUp');
+        if (dashUsedUp) dashUsedUp.textContent = usedFilaments.length;
         // Refresh mobile dashboard if currently visible
         const dashView = document.getElementById('mobileDashboardView');
         if (dashView && dashView.style.display === 'block') {
@@ -2229,7 +2234,7 @@ function applyFiltersAndSearch() {
     });
 
     renderFilaments(filteredFilaments);
-    updateStats(filteredFilaments.filter(f => !f.is_archived));
+    updateStats();
 }
 
 // Export functions for global access
