@@ -2153,16 +2153,23 @@ window.clearFilters = clearFilters;
 
 function updateControlsForTab(tabName) {
     const isHistoryTab = tabName === 'historyTab';
+    const isUsedTab = tabName === 'usedTab';
     const topbarAddBtn = document.getElementById('addFilamentBtn');
     const mobileAddBtn = document.getElementById('mobileAddBtn');
+    const mobileFilterBtn = document.getElementById('mobileFilterBtn');
+    const filterBtn = document.getElementById('filterBtn');
+    const controlsEl = document.querySelector('.controls');
 
-    if (topbarAddBtn) {
-        topbarAddBtn.hidden = isHistoryTab;
-    }
+    // Hide Add button on history tab
+    if (topbarAddBtn) topbarAddBtn.hidden = isHistoryTab;
+    if (mobileAddBtn) mobileAddBtn.hidden = isHistoryTab;
 
-    if (mobileAddBtn) {
-        mobileAddBtn.hidden = isHistoryTab;
-    }
+    // Hide inventory filter buttons on history/used tabs
+    if (mobileFilterBtn) mobileFilterBtn.hidden = isHistoryTab || isUsedTab;
+    if (filterBtn) filterBtn.hidden = isHistoryTab || isUsedTab;
+
+    // Hide search bar on history tab (history has its own filament filter dropdown)
+    if (controlsEl) controlsEl.hidden = isHistoryTab;
 }
 
 function openTab(evt, tabName) {
