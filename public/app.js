@@ -258,9 +258,8 @@ async function loadUsedFilaments() {
         usedFilaments = await apiCall('/filaments/used');
         renderUsedFilaments(usedFilaments);
         updateUsedStats();
-        // Update used up counts everywhere
-        const totalUsedUpEl = document.getElementById('totalUsedUp');
-        if (totalUsedUpEl) totalUsedUpEl.textContent = usedFilaments.length;
+        // Refresh shared stats now that used filaments are loaded
+        updateStats();
         const dashUsedUp = document.getElementById('dashUsedUp');
         if (dashUsedUp) dashUsedUp.textContent = usedFilaments.length;
         // Refresh mobile dashboard if currently visible
@@ -2655,6 +2654,7 @@ function switchTab(tabName) {
     if (targetTab) targetTab.style.display = 'block';
 
     updateControlsForTab(tabName);
+    if (tabName === 'inventoryTab') updateStats();
 
     // Highlight matching tab link
     for (let i = 0; i < tabLinks.length; i++) {
