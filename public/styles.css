@@ -52,6 +52,195 @@
     --safe-area-top: env(safe-area-inset-top, 0px);
 }
 
+/* --- Dark Mode (iOS Dark) --- */
+[data-theme="dark"] {
+    --bg-primary: #000000;
+    --bg-secondary: #1C1C1E;
+    --bg-tertiary: #2C2C2E;
+    --bg-grouped: #000000;
+    --bg-grouped-secondary: #1C1C1E;
+
+    --text-primary: #FFFFFF;
+    --text-secondary: #98989D;
+    --text-tertiary: #48484A;
+
+    --accent: #0A84FF;
+    --accent-hover: #409CFF;
+    --success: #30D158;
+    --warning: #FF9F0A;
+    --danger: #FF453A;
+    --danger-hover: #FF6961;
+
+    --separator: rgba(84, 84, 88, 0.65);
+    --separator-opaque: #38383A;
+
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.5);
+    --shadow-xl: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .sidebar {
+    background: rgba(28, 28, 30, 0.95);
+}
+
+[data-theme="dark"] .sidebar-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .sidebar-logout-btn:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .topbar {
+    background: rgba(0, 0, 0, 0.85);
+}
+
+[data-theme="dark"] .topbar-btn:hover {
+    background: rgba(10, 132, 255, 0.12);
+}
+
+[data-theme="dark"] .search-input,
+[data-theme="dark"] .controls .search-input {
+    background: rgba(118, 118, 128, 0.24);
+}
+
+[data-theme="dark"] .search-input:focus,
+[data-theme="dark"] .controls .search-input:focus {
+    background: rgba(118, 118, 128, 0.36);
+}
+
+[data-theme="dark"] .pill-btn {
+    background: var(--bg-secondary);
+    border-color: var(--separator-opaque);
+}
+
+[data-theme="dark"] .pill-btn:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .btn-secondary {
+    background: rgba(118, 118, 128, 0.24);
+}
+
+[data-theme="dark"] .btn-secondary:hover {
+    background: rgba(118, 118, 128, 0.36);
+}
+
+[data-theme="dark"] .close-btn {
+    background: rgba(118, 118, 128, 0.24);
+}
+
+[data-theme="dark"] .close-btn:hover {
+    background: rgba(118, 118, 128, 0.36);
+}
+
+[data-theme="dark"] .dropdown-option:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .dropdown-option.selected {
+    background: rgba(10, 132, 255, 0.15);
+}
+
+[data-theme="dark"] .filament-card-actions button:hover {
+    background: rgba(10, 132, 255, 0.1);
+}
+
+[data-theme="dark"] .filament-card-actions button.action-danger:hover {
+    background: rgba(255, 69, 58, 0.1);
+}
+
+[data-theme="dark"] .filament-weight-bar {
+    background: rgba(118, 118, 128, 0.24);
+}
+
+[data-theme="dark"] .tabs,
+[data-theme="dark"] .segmented-control {
+    background: rgba(118, 118, 128, 0.24);
+}
+
+[data-theme="dark"] .tab-link.active,
+[data-theme="dark"] .segmented-control .segment.active {
+    background: var(--bg-secondary);
+}
+
+[data-theme="dark"] .desktop-low-stock-panel {
+    background: linear-gradient(180deg, rgba(255, 159, 10, 0.1), rgba(255, 159, 10, 0.03) 40%, var(--bg-secondary) 100%);
+    border-color: rgba(255, 159, 10, 0.3);
+}
+
+[data-theme="dark"] .modal-overlay {
+    background: rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .toast-content {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .settings-item:hover,
+[data-theme="dark"] .settings-item:active {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .users-table tr:hover td {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+[data-theme="dark"] .admin-info-banner {
+    background: rgba(10, 132, 255, 0.1);
+}
+
+[data-theme="dark"] .warning-box {
+    background: rgba(255, 69, 58, 0.1);
+}
+
+[data-theme="dark"] .filter-chip {
+    background: rgba(10, 132, 255, 0.15);
+}
+
+[data-theme="dark"] .filament-type-badge {
+    background: rgba(10, 132, 255, 0.15);
+}
+
+[data-theme="dark"] .history-source-badge.manual {
+    background: rgba(10, 132, 255, 0.15);
+}
+
+[data-theme="dark"] .history-source-badge.auto,
+[data-theme="dark"] .history-source-badge.api_key {
+    background: rgba(48, 209, 88, 0.15);
+}
+
+[data-theme="dark"] .history-source-badge.other {
+    background: rgba(118, 118, 128, 0.24);
+}
+
+[data-theme="dark"] .role-badge {
+    background: rgba(10, 132, 255, 0.15);
+}
+
+[data-theme="dark"] .role-badge.admin {
+    background: rgba(255, 159, 10, 0.15);
+}
+
+[data-theme="dark"] .form-group select {
+    background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%2398989D' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+[data-theme="dark"] .history-filter select {
+    background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%2398989D' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
+
 /* --- Reset & Base --- */
 *,
 *::before,
@@ -2695,5 +2884,51 @@ a:focus:not(:focus-visible) {
 
     .form-actions {
         padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    }
+}
+
+/* ============================================
+   DARK MODE — Mobile Overrides
+   ============================================ */
+
+@media (max-width: 768px) {
+    [data-theme="dark"] .sidebar {
+        background: rgba(28, 28, 30, 0.98);
+    }
+
+    [data-theme="dark"] .mobile-bottom-nav {
+        background: rgba(28, 28, 30, 0.94);
+    }
+
+    [data-theme="dark"] .mobile-dashboard-view,
+    [data-theme="dark"] .mobile-settings-panel {
+        background: var(--bg-primary);
+    }
+
+    [data-theme="dark"] .form-actions {
+        background: var(--bg-secondary);
+    }
+}
+
+/* ============================================
+   VERSION FOOTER
+   ============================================ */
+
+.app-version-footer {
+    text-align: center;
+    padding: 20px 16px;
+    font-size: 11px;
+    color: var(--text-tertiary);
+    letter-spacing: 0.2px;
+}
+
+@media (max-width: 768px) {
+    .content-wrapper > .app-version-footer {
+        padding-bottom: 0;
+    }
+
+    .mobile-dashboard-view .app-version-footer,
+    .mobile-settings-panel .app-version-footer {
+        padding: 24px 16px 16px;
     }
 }

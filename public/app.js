@@ -1,3 +1,17 @@
+// App version
+const APP_VERSION = '1.0.0';
+const APP_COMMIT = '3769414';
+
+// Apply saved theme immediately to prevent flash
+(function() {
+    const saved = localStorage.getItem('theme');
+    if (saved) {
+        document.documentElement.setAttribute('data-theme', saved);
+    } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+    }
+})();
+
 // Global state
 let filaments = [];
 let usedFilaments = [];
@@ -2253,18 +2267,30 @@ let currentActiveTab = 'inventoryTab';
 function updateControlsForTab(tabName) {
     currentActiveTab = tabName;
     const isHistoryTab = tabName === 'historyTab';
+    const isUsedTab = tabName === 'usedTab';
+    const isInventoryTab = tabName === 'inventoryTab';
     const topbarAddBtn = document.getElementById('addFilamentBtn');
+    const filterBtn = document.getElementById('filterBtn');
     const mobileAddBtn = document.getElementById('mobileAddBtn');
+    const mobileFilterBtn = document.getElementById('mobileFilterBtn');
 
-    // Hide Add button on history tab only
-    if (topbarAddBtn) topbarAddBtn.hidden = isHistoryTab;
-    if (mobileAddBtn) mobileAddBtn.hidden = isHistoryTab;
+    // Show Add button only on inventory tab
+    if (topbarAddBtn) topbarAddBtn.hidden = !isInventoryTab;
+    if (mobileAddBtn) mobileAddBtn.hidden = !isInventoryTab;
+
+    // Hide Filter button on used tab (no filtering needed)
+    if (filterBtn) filterBtn.hidden = isUsedTab;
+    if (mobileFilterBtn) mobileFilterBtn.hidden = isUsedTab;
 
     // Update search placeholder based on tab
     if (searchInput) {
         searchInput.placeholder = isHistoryTab ? 'Search history...' : 'Search filaments...';
         searchInput.value = '';
     }
+
+    // Close filters panel when switching tabs
+    const filtersPanel = document.getElementById('filtersPanel');
+    if (filtersPanel) filtersPanel.style.display = 'none';
 }
 
 function openTab(evt, tabName) {
@@ -2750,6 +2776,12 @@ function showMobileSection(section, title) {
         if (contentWrapper) contentWrapper.style.display = 'block';
         if (topbarTitle) topbarTitle.textContent = title || 'Inventory';
         if (topbarActions) topbarActions.style.display = 'flex';
+        // Hide add button when showing History on mobile
+        const isHistory = title === 'History';
+        const mobileAddBtn = document.getElementById('mobileAddBtn');
+        if (mobileAddBtn) mobileAddBtn.hidden = isHistory;
+        const topbarAddBtn = document.getElementById('addFilamentBtn');
+        if (topbarAddBtn) topbarAddBtn.hidden = isHistory;
     }
 }
 
@@ -3120,11 +3152,66 @@ function closeSpoolHistoryModal() {
     document.body.style.overflow = '';
 }
 
+// --- Theme Toggle ---
+function toggleTheme() {
+    const current = document.documentElement.getAttribute('data-theme');
+    const newTheme = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    updateThemeUI();
+    const metaTheme = document.querySelector('meta[name="theme-color"]');
+    if (metaTheme) {
+        metaTheme.setAttribute('content', newTheme === 'dark' ? '#000000' : '#F2F2F7');
+    }
+}
+
+function updateThemeUI() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.querySelectorAll('.theme-toggle-icon').forEach(function(icon) {
+        icon.className = 'fas ' + (isDark ? 'fa-sun' : 'fa-moon') + ' theme-toggle-icon';
+    });
+    document.querySelectorAll('.theme-toggle-label').forEach(function(label) {
+        label.textContent = isDark ? 'Light Mode' : 'Dark Mode';
+    });
+}
+
+function initThemeToggle() {
+    updateThemeUI();
+    // Update meta theme-color on initial load
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const metaTheme = document.querySelector('meta[name="theme-color"]');
+    if (metaTheme && isDark) {
+        metaTheme.setAttribute('content', '#000000');
+    }
+    const sidebarBtn = document.getElementById('themeToggleBtn');
+    if (sidebarBtn) sidebarBtn.addEventListener('click', toggleTheme);
+    const settingsBtn = document.getElementById('settingsThemeToggle');
+    if (settingsBtn) settingsBtn.addEventListener('click', toggleTheme);
+    // Listen for system theme changes when no saved preference
+    if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
+            if (!localStorage.getItem('theme')) {
+                document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+                updateThemeUI();
+            }
+        });
+    }
+}
+
+// --- Version Footer ---
+function initVersionFooter() {
+    document.querySelectorAll('.app-version-footer').forEach(function(el) {
+        el.textContent = 'v' + APP_VERSION + ' \u00B7 ' + APP_COMMIT;
+    });
+}
+
 // --- Initialize all mobile features ---
 document.addEventListener('DOMContentLoaded', () => {
     initMobileNav();
     initPullToRefresh();
     initSidebarNav();
+    initThemeToggle();
+    initVersionFooter();
 
     // Delay swipe init until modals exist
     setTimeout(initSwipeToDismiss, 1000);
@@ -3212,6 +3299,9 @@ function initSidebarNav() {
                         tabLinks[i].classList.add('active');
                     }
                 }
+
+                // Update controls (show/hide add/filter buttons) for active tab
+                updateControlsForTab(tabName);
 
                 // Load history if needed
                 if (section === 'history') {
