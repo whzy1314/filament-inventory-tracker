@@ -285,6 +285,10 @@ button {
     display: none !important;
 }
 
+.hidden-force {
+    display: none !important;
+}
+
 input, select, textarea {
     font-family: inherit;
     font-size: inherit;

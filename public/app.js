@@ -2282,7 +2282,9 @@ function updateControlsForTab(tabName) {
 
     // Show Add button only on inventory tab
     if (topbarAddBtn) topbarAddBtn.hidden = !isInventoryTab;
-    if (mobileAddBtn) mobileAddBtn.style.display = isInventoryTab ? '' : 'none';
+    if (mobileAddBtn) {
+        if (isInventoryTab) { mobileAddBtn.classList.remove('hidden-force'); } else { mobileAddBtn.classList.add('hidden-force'); }
+    }
 
     // Update search placeholder based on tab
     if (searchInput) {
@@ -2781,7 +2783,9 @@ function showMobileSection(section, title) {
         // Hide add button when showing History on mobile
         const isHistory = title === 'Usage History';
         const mobileAddBtn = document.getElementById('mobileAddBtn');
-        if (mobileAddBtn) mobileAddBtn.style.display = isHistory ? 'none' : '';
+        if (mobileAddBtn) {
+            if (isHistory) { mobileAddBtn.classList.add('hidden-force'); } else { mobileAddBtn.classList.remove('hidden-force'); }
+        }
         const topbarAddBtn = document.getElementById('addFilamentBtn');
         if (topbarAddBtn) topbarAddBtn.style.display = isHistory ? 'none' : '';
     }
