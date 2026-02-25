@@ -130,7 +130,9 @@ async function logout() {
 // Event listeners
 function setupEventListeners() {
     addFilamentBtn.addEventListener('click', showAddModal);
-    searchBtn.addEventListener('click', handleSearch);
+    if (searchBtn) {
+        searchBtn.addEventListener('click', handleSearch);
+    }
     searchInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             handleSearch();
@@ -2149,6 +2151,20 @@ window.toggleFiltersPanel = toggleFiltersPanel;
 window.applyFilters = applyFilters;
 window.clearFilters = clearFilters;
 
+function updateControlsForTab(tabName) {
+    const isHistoryTab = tabName === 'historyTab';
+    const topbarAddBtn = document.getElementById('addFilamentBtn');
+    const mobileAddBtn = document.getElementById('mobileAddBtn');
+
+    if (topbarAddBtn) {
+        topbarAddBtn.hidden = isHistoryTab;
+    }
+
+    if (mobileAddBtn) {
+        mobileAddBtn.hidden = isHistoryTab;
+    }
+}
+
 function openTab(evt, tabName) {
     var i, tabcontent, tablinks;
     tabcontent = document.getElementsByClassName("tab-content");
@@ -2161,6 +2177,8 @@ function openTab(evt, tabName) {
     }
     document.getElementById(tabName).style.display = "block";
     evt.currentTarget.className += " active";
+
+    updateControlsForTab(tabName);
 
     if (tabName === 'historyTab') {
         loadDeductionHistory();
@@ -2503,6 +2521,9 @@ function switchTab(tabName) {
     }
     const targetTab = document.getElementById(tabName);
     if (targetTab) targetTab.style.display = 'block';
+
+    updateControlsForTab(tabName);
+
     // Highlight matching tab link
     for (let i = 0; i < tabLinks.length; i++) {
         if (tabLinks[i].getAttribute('onclick') &&
@@ -2846,16 +2867,20 @@ async function loadDeductionHistory(reset = true) {
     try {
         let url = `/api/deduction-history?limit=${HISTORY_PAGE_SIZE}&offset=${historyOffset}`;
         if (historyFilterFilamentId) {
-            url += `&filament_id=${historyFilterFilamentId}`;
+            url += `&filament_id=${historyFilterFilamentId}&filamentId=${historyFilterFilamentId}`;
         }
 
         const response = await fetch(url);
         if (!response.ok) throw new Error('Failed to fetch history');
 
         const data = await response.json();
+        const incomingHistory = historyFilterFilamentId
+            ? (data.history || []).filter(entry => String(entry.filament_id) === String(historyFilterFilamentId))
+            : (data.history || []);
+
         historyTotal = data.total;
-        historyData = historyData.concat(data.history);
-        historyOffset += data.history.length;
+        historyData = historyData.concat(incomingHistory);
+        historyOffset += incomingHistory.length;
 
         loadingEl.style.display = 'none';
 
@@ -2866,7 +2891,7 @@ async function loadDeductionHistory(reset = true) {
         }
 
         emptyEl.style.display = 'none';
-        renderHistory(data.history, !reset);
+        renderHistory(incomingHistory, !reset);
         paginationEl.style.display = historyOffset < historyTotal ? 'flex' : 'none';
     } catch (error) {
         console.error('Error loading deduction history:', error);
@@ -2904,7 +2929,8 @@ function createHistoryEntry(entry) {
 
     let matchedByDisplay = '';
     if (entry.matched_by) {
-        if (entry.matched_by.toLowerCase() === 'hex color' && entry.color) {
+        const matchedByNormalized = String(entry.matched_by).toLowerCase().replace(/[_\s]+/g, ' ').trim();
+        if (matchedByNormalized.includes('color hex') && entry.color) {
             matchedByDisplay = escapeHtml(entry.color);
         } else {
             matchedByDisplay = escapeHtml(entry.matched_by);

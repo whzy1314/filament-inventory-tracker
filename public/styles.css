@@ -2278,7 +2278,7 @@ img {
 
 .controls .search-input {
     width: 100%;
-    padding: 10px 14px 10px 14px;
+    padding: 10px 14px 10px 38px;
     border: none;
     border-radius: var(--radius-md);
     background: rgba(142, 142, 147, 0.12);
@@ -2286,6 +2286,16 @@ img {
     color: var(--text-primary);
     outline: none;
     transition: all var(--transition-fast);
+}
+
+.controls .search-input-icon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-secondary);
+    font-size: 14px;
+    pointer-events: none;
 }
 
 .controls .search-input::placeholder {
