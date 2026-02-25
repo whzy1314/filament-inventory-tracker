@@ -60,7 +60,7 @@
                 </button>
 <button class="sidebar-item" data-section="history" id="sidebarHistory">
                     <i class="fas fa-clock-rotate-left"></i>
-                    <span>History</span>
+                    <span>Usage History</span>
                 </button>
 
                 <div class="sidebar-section-label">Manage</div>
@@ -194,7 +194,7 @@
                             <div class="filter-group">
                                 <label for="filterStockStatus">Stock Status</label>
                                 <select id="filterStockStatus">
-                                    <option value="active">Current Inventory</option>
+                                    <option value="active">In Stock</option>
                                     <option value="used">Used Up Only</option>
                                     <option value="all">All</option>
                                 </select>
@@ -220,8 +220,8 @@
 
                     <!-- Desktop Tab Control (segmented) -->
                     <div class="tabs">
-                        <button class="tab-link active" onclick="openTab(event, 'inventoryTab')">Current Inventory</button>
-                        <button class="tab-link" onclick="openTab(event, 'historyTab')">History</button>
+                        <button class="tab-link active" onclick="openTab(event, 'inventoryTab')">Inventory</button>
+                        <button class="tab-link" onclick="openTab(event, 'historyTab')">Usage History</button>
                     </div>
 
                     <!-- Inventory Tab -->
@@ -229,7 +229,11 @@
                         <div class="stats">
                             <div class="stat-card">
                                 <div class="stat-number" id="totalFilaments">0</div>
-                                <div class="stat-label">Total Spools</div>
+                                <div class="stat-label">In Stock</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-number" id="totalUsedUp">0</div>
+                                <div class="stat-label">Used Up</div>
                             </div>
                             <div class="stat-card">
                                 <div class="stat-number" id="totalBrands">0</div>
@@ -691,7 +695,7 @@
         </button>
         <button class="bottom-nav-item" data-tab="history" id="navHistory">
             <i class="fas fa-clock-rotate-left"></i>
-            <span>History</span>
+            <span>Usage History</span>
         </button>
         <button class="bottom-nav-item" data-tab="settings" id="navSettings">
             <i class="fas fa-cog"></i>
@@ -706,7 +710,11 @@
             <div class="mobile-dash-stats">
                 <div class="mobile-dash-stat">
                     <div class="mobile-dash-stat-number" id="dashTotalSpools">0</div>
-                    <div class="mobile-dash-stat-label">Spools</div>
+                    <div class="mobile-dash-stat-label">In Stock</div>
+                </div>
+                <div class="mobile-dash-stat">
+                    <div class="mobile-dash-stat-number" id="dashUsedUp">0</div>
+                    <div class="mobile-dash-stat-label">Used Up</div>
                 </div>
                 <div class="mobile-dash-stat">
                     <div class="mobile-dash-stat-number" id="dashTotalWeight">0g</div>

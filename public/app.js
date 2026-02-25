@@ -1,6 +1,6 @@
 // App version
 const APP_VERSION = '1.0.0';
-const APP_COMMIT = '95550c6';
+const APP_COMMIT = 'b21984f';
 
 // Apply saved theme immediately to prevent flash
 (function() {
@@ -514,6 +514,8 @@ function updateStats(filamentsToCount = filaments) {
     const weight = activeFilaments.reduce((sum, f) => sum + (f.weight_remaining || 0), 0);
 
     totalFilaments.textContent = total;
+    const totalUsedUpEl = document.getElementById('totalUsedUp');
+    if (totalUsedUpEl) totalUsedUpEl.textContent = usedFilaments.length;
     totalBrands.textContent = brands;
     totalWeight.textContent = `${formatWeight(weight)}g`;
     renderDesktopLowStock(activeFilaments);
@@ -2686,7 +2688,7 @@ function initMobileNav() {
                     showAddModal();
                     break;
                 case 'history':
-                    showMobileSection('inventory', 'History');
+                    showMobileSection('inventory', 'Usage History');
                     switchTab('historyTab');
                     loadDeductionHistory();
                     break;
@@ -2772,7 +2774,7 @@ function showMobileSection(section, title) {
         if (topbarTitle) topbarTitle.textContent = title || 'Inventory';
         if (topbarActions) topbarActions.style.display = 'flex';
         // Hide add button when showing History on mobile
-        const isHistory = title === 'History';
+        const isHistory = title === 'Usage History';
         const mobileAddBtn = document.getElementById('mobileAddBtn');
         if (mobileAddBtn) mobileAddBtn.style.display = isHistory ? 'none' : '';
         const topbarAddBtn = document.getElementById('addFilamentBtn');
@@ -2792,6 +2794,8 @@ async function renderMobileDashboard() {
     const dashWeight = document.getElementById('dashTotalWeight');
     const dashBrands = document.getElementById('dashBrandsCount');
     if (dashSpools) dashSpools.textContent = totalSpools;
+    const dashUsedUp = document.getElementById('dashUsedUp');
+    if (dashUsedUp) dashUsedUp.textContent = usedFilaments.length;
     if (dashWeight) dashWeight.textContent = `${formatWeight(totalWeight)}g`;
     if (dashBrands) dashBrands.textContent = brandsCount;
 
@@ -3311,7 +3315,7 @@ function initSidebarNav() {
                 }
 
                 // Update topbar title
-                const titles = { 'inventory': 'Inventory', 'history': 'History' };
+                const titles = { 'inventory': 'Inventory', 'history': 'Usage History' };
                 if (topbarTitle) topbarTitle.textContent = titles[section] || 'Inventory';
             }
         });
@@ -3331,7 +3335,7 @@ function initSidebarNav() {
                 item.classList.toggle('active', item.dataset.section === section);
             });
             const topbarTitle = document.getElementById('topbarTitle');
-            const titles = { 'inventory': 'Inventory', 'history': 'History' };
+            const titles = { 'inventory': 'Inventory', 'history': 'Usage History' };
             if (topbarTitle) topbarTitle.textContent = titles[section] || 'Inventory';
         }
     };
