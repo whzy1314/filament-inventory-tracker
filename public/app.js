@@ -2653,7 +2653,7 @@ async function renderMobileDashboard() {
             .sort((a, b) => (a.weight_remaining || 0) - (b.weight_remaining || 0));
 
         if (lowStock.length === 0) {
-            lowStockEl.innerHTML = '<div class="mobile-dash-empty">All spools above 100g</div>';
+            lowStockEl.innerHTML = '<div class="mobile-dash-empty">All Spools below 100g</div>';
         } else {
             lowStockEl.innerHTML = lowStock.map(f => {
                 const colorHex = f.color_hex || getColorHexSync(f.color);
@@ -2902,6 +2902,15 @@ function createHistoryEntry(entry) {
         ? `${escapeHtml(entry.brand)} ${escapeHtml(entry.type)}`
         : 'Deleted filament';
 
+    let matchedByDisplay = '';
+    if (entry.matched_by) {
+        if (entry.matched_by.toLowerCase() === 'hex color' && entry.color) {
+            matchedByDisplay = escapeHtml(entry.color);
+        } else {
+            matchedByDisplay = escapeHtml(entry.matched_by);
+        }
+    }
+
     return `
         <div class="history-entry">
             <div class="history-entry-header">
@@ -2917,7 +2926,7 @@ function createHistoryEntry(entry) {
             </div>
             ${entry.print_name ? `<div class="history-print-name"><i class="fas fa-cube"></i> ${escapeHtml(entry.print_name)}</div>` : ''}
             <div class="history-entry-footer">
-                <i class="far fa-clock"></i> ${dateStr} ${timeStr}${entry.matched_by ? ` &middot; ${escapeHtml(entry.matched_by)}` : ''}
+                <i class="far fa-clock"></i> ${dateStr} ${timeStr}${matchedByDisplay ? ` &middot; ${matchedByDisplay}` : ''}
             </div>
         </div>
     `;
